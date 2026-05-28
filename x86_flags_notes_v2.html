@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>x86 有符号数比较 — 标志位详解</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #ffffff;
+    --bg2:       #f7f6f3;
+    --bg3:       #f0ede8;
+    --border:    #ddd9d2;
+    --accent:    #8b6914;
+    --accent2:   #1e6e8a;
+    --accent3:   #5a3e9b;
+    --text:      #2a2724;
+    --text-muted:#7a756e;
+    --green:     #2e7d4f;
+    --red:       #b03030;
+    --yellow:    #8b6914;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 300;
+    line-height: 1.8;
+    min-height: 100vh;
+    padding: 60px 24px;
+  }
+
+  .page {
+    max-width: 820px;
+    margin: 0 auto;
+  }
+
+  /* ── 顶部标题区 ── */
+  header {
+    border-left: 3px solid var(--accent);
+    padding-left: 24px;
+    margin-bottom: 64px;
+  }
+  header .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  header h1 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1a1714;
+    line-height: 1.3;
+  }
+  header p {
+    margin-top: 10px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  /* ── 章节 ── */
+  section {
+    margin-bottom: 56px;
+  }
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  h2 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: #1a1714;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #1a1714;
+    margin: 24px 0 12px;
+  }
+
+  /* ── 核心条件卡片 ── */
+  .condition-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 28px 32px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+  .condition-card .formula {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .condition-card .desc {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+  .condition-card .desc code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    background: var(--bg3);
+    padding: 1px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  /* ── 表格 ── */
+  .table-wrap {
+    overflow-x: auto;
+    margin-bottom: 24px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  thead tr {
+    background: var(--bg3);
+  }
+  thead th {
+    padding: 12px 16px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--bg2); }
+  td {
+    padding: 12px 16px;
+    color: var(--text);
+    vertical-align: middle;
+  }
+  td code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    background: var(--bg3);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+  }
+
+  .ok   { color: var(--green); font-weight: 500; }
+  .fail { color: var(--red);   font-weight: 500; }
+  .flag-eq  { color: var(--green); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+  .flag-neq { color: var(--red);   font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+
+  tr.highlight td { background: rgba(139,105,20,0.05); }
+
+  /* ── 说明文字块 ── */
+  .note {
+    background: var(--bg2);
+    border-left: 3px solid var(--accent2);
+    border-radius: 0 4px 4px 0;
+    padding: 18px 22px;
+    margin-bottom: 24px;
+    font-size: 0.9rem;
+    color: var(--text);
+  }
+  .note strong { color: var(--accent2); font-weight: 500; }
+
+  .note-warn { border-left-color: var(--red); }
+  .note-warn strong { color: var(--red); }
+
+  .note-gold { border-left-color: var(--accent); }
+  .note-gold strong { color: var(--accent); }
+
+  /* ── 代码块 ── */
+  .code-block {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 18px 22px;
+    margin-bottom: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text);
+    line-height: 1.9;
+    overflow-x: auto;
+  }
+  .code-block .comment { color: var(--text-muted); }
+  .code-block .highlight-line { color: var(--red); font-weight: 600; }
+  .code-block .ok-line { color: var(--green); font-weight: 600; }
+
+  /* ── 溢出方向表 ── */
+  .counter-example {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  .counter-example .ce-header {
+    background: rgba(176,48,48,0.07);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--red);
+    text-transform: uppercase;
+  }
+  .counter-example .table-wrap { border: none; margin-bottom: 0; }
+
+  /* ── 两栏对比 ── */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .compare-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 22px;
+  }
+  .compare-card .cc-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .compare-card.signed   .cc-label { color: var(--accent); }
+  .compare-card.unsigned .cc-label { color: var(--accent2); }
+  .compare-card h3 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 14px;
+    color: #1a1714;
+  }
+  .compare-card ul {
+    list-style: none;
+    font-size: 0.875rem;
+    color: var(--text);
+  }
+  .compare-card ul li {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  .compare-card ul li:last-child { border-bottom: none; }
+  .compare-card ul li code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    background: var(--bg3);
+    padding: 2px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  /* ── 总结框 ── */
+  .summary {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 24px 28px;
+    margin-top: 8px;
+  }
+  .summary .sum-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .summary p {
+    font-size: 0.95rem;
+    color: var(--text);
+    line-height: 1.8;
+    margin-bottom: 8px;
+  }
+  .summary p:last-child { margin-bottom: 0; }
+  .summary strong { color: var(--accent); font-weight: 500; }
+
+  /* ── 页脚 ── */
+  footer {
+    margin-top: 80px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (max-width: 560px) {
+    .compare-grid { grid-template-columns: 1fr; }
+    .condition-card { flex-direction: column; gap: 16px; }
+    header h1 { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="label">x86 汇编 · 标志位笔记</div>
+    <h1>有符号数比较与标志位判断</h1>
+    <p>JGE 为何依赖 SF 与 OF，以及 OF=1 时符号翻转的原理</p>
+  </header>
+
+  <!-- ══════════════════════════════════
+       第一节：JGE 的判断条件
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">01 &nbsp;/&nbsp; JGE 的跳转条件</div>
+    <h2>JGE 如何用 SF 和 OF 判断大小</h2>
+
+    <div class="condition-card">
+      <div class="formula">SF = OF</div>
+      <div class="desc">
+        执行 <code>CMP A, B</code>（本质为 A − B）后，<br>
+        若 SF 与 OF 相等，则认为 A ≥ B，触发跳转。
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>情况</th>
+            <th>A − B 结果</th>
+            <th>SF</th>
+            <th>OF</th>
+            <th>SF = OF?</th>
+            <th>跳转?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="highlight">
+            <td>A &gt; B，无溢出</td>
+            <td>正数</td>
+            <td><code>0</code></td>
+            <td><code>0</code></td>
+            <td><span class="flag-eq">0 = 0 ✔</span></td>
+            <td class="ok">跳转</td>
+          </tr>
+          <tr class="highlight">
+            <td>A = B，无溢出</td>
+            <td>零</td>
+            <td><code>0</code></td>
+            <td><code>0</code></td>
+            <td><span class="flag-eq">0 = 0 ✔</span></td>
+            <td class="ok">跳转</td>
+          </tr>
+          <tr>
+            <td>A &lt; B，无溢出</td>
+            <td>负数</td>
+            <td><code>1</code></td>
+            <td><code>0</code></td>
+            <td><span class="flag-neq">1 ≠ 0 ✘</span></td>
+            <td class="fail">不跳</td>
+          </tr>
+          <tr>
+            <td>A &lt; B，有溢出</td>
+            <td>符号被翻转</td>
+            <td><code>0</code></td>
+            <td><code>1</code></td>
+            <td><span class="flag-neq">0 ≠ 1 ✘</span></td>
+            <td class="fail">不跳</td>
+          </tr>
+          <tr class="highlight">
+            <td>A &gt; B，有溢出</td>
+            <td>符号被翻转</td>
+            <td><code>1</code></td>
+            <td><code>1</code></td>
+            <td><span class="flag-eq">1 = 1 ✔</span></td>
+            <td class="ok">跳转</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 溢出时的详细解释 -->
+    <h3>OF=1 时，为什么 SF=1 且 OF=1 反而意味着 A ≥ B？</h3>
+
+    <div class="note note-gold">
+      <strong>OF 的定义：</strong>运算结果超出有符号数的表示范围，导致符号位发生了错误翻转。OF=1 时，SF 所呈现的符号一定与真实结果相反。
+    </div>
+
+    <p style="margin-bottom:16px; font-size:0.93rem;">用具体数字说明（8位有符号数，范围 −128 ～ +127）：</p>
+    <p style="margin-bottom:10px; font-size:0.93rem;">取 <strong>A = 100，B = −50</strong>，显然 A &gt; B，JGE 应该跳转。真实结果 100 − (−50) = <strong>150</strong>，超出 +127，发生正溢出：</p>
+
+    <div class="code-block">
+      <span class="comment">; A = 100 = 0110 0100</span><br>
+      <span class="comment">; B = −50，取反加1 = 0011 0010</span><br>
+      &nbsp;<br>
+        0110 0100<br>
+      + 0011 0010<br>
+      ───────────<br>
+      <span class="highlight-line">  1001 0110   ← 被截断为 −106（有符号解读）</span><br>
+      &nbsp;<br>
+      <span class="comment">; SF = 1（最高位是1，看起来像负数）← 这是假象</span><br>
+      <span class="comment">; OF = 1（真实结果150超出范围，溢出）</span>
+    </div>
+
+    <div class="note note-warn">
+      <strong>SF=1 是假象：</strong>真实结果是 +150（正数），但进位把符号位从 0 压成了 1。SF 告诉你"负数"，但实际是正数。OF=1 正是在告诉你"SF 的符号是错的，要取反才是真相"。
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>溢出方向</th>
+            <th>真实结果</th>
+            <th>SF（假象）</th>
+            <th>OF</th>
+            <th>真实符号 = SF XOR OF</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>正溢出（结果 &gt; +127）</td>
+            <td>正数</td>
+            <td><code>1</code>（错）</td>
+            <td><code>1</code></td>
+            <td><span class="flag-eq">1 XOR 1 = 0 → 正 ✔</span></td>
+          </tr>
+          <tr>
+            <td>负溢出（结果 &lt; −128）</td>
+            <td>负数</td>
+            <td><code>0</code>（错）</td>
+            <td><code>1</code></td>
+            <td><span class="flag-neq">0 XOR 1 = 1 → 负 ✔</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="summary">
+      <div class="sum-title">核心公式</div>
+      <p>真实符号 = SF XOR OF</p>
+      <p>JGE 跳转条件 = 真实结果 ≥ 0 = <strong>(SF XOR OF) = 0</strong> = <strong>SF = OF</strong></p>
+      <p>SF 是"加了噪声的符号"，OF 就是那个噪声。SF XOR OF 把噪声消掉，还原真实符号。SF=1 且 OF=1，两个 1 异或得 0，说明真实结果是正数，A ≥ B，所以跳转。</p>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       第二节：为什么不用 CF
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">02 &nbsp;/&nbsp; 为什么不用 CF</div>
+    <h2>CF 是为无符号数设计的</h2>
+
+    <div class="note">
+      <strong>CF 的定义：</strong>记录运算时最高位是否产生了借位或进位。对无符号数，借位能正确反映大小关系。但 CF 完全看不懂符号位，它把所有数都当作无符号的位模式处理。
+    </div>
+
+    <div class="counter-example">
+      <div class="ce-header">反例：CF 在有符号数中给出错误结论（8 位）</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>A</th>
+              <th>B</th>
+              <th>实际大小</th>
+              <th>CF</th>
+              <th>CF 的结论</th>
+              <th>正确?</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>−1</td>
+              <td>1</td>
+              <td>−1 &lt; 1</td>
+              <td><code>0</code></td>
+              <td>CF=0 → 误判为 A ≥ B</td>
+              <td class="fail">❌ 错误</td>
+            </tr>
+            <tr>
+              <td>127</td>
+              <td>−1</td>
+              <td>127 &gt; −1</td>
+              <td><code>1</code></td>
+              <td>CF=1 → 误判为 A &lt; B</td>
+              <td class="fail">❌ 错误</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="note note-warn">
+      <strong>根本原因：</strong>CF 只记录二进制借位，不知道数有没有符号。有符号数必须用 SF 和 OF 配合，才能还原真实的大小关系。
+    </div>
+
+    <div class="compare-grid">
+      <div class="compare-card signed">
+        <div class="cc-label">有符号数</div>
+        <h3>使用 SF / OF</h3>
+        <ul>
+          <li><span>大于等于</span> <code>JGE &nbsp;SF=OF</code></li>
+          <li><span>大于</span>     <code>JG &nbsp;&nbsp;SF=OF, ZF=0</code></li>
+          <li><span>小于等于</span> <code>JLE &nbsp;SF≠OF 或 ZF=1</code></li>
+          <li><span>小于</span>     <code>JL &nbsp;&nbsp;SF≠OF</code></li>
+        </ul>
+      </div>
+      <div class="compare-card unsigned">
+        <div class="cc-label">无符号数</div>
+        <h3>使用 CF</h3>
+        <ul>
+          <li><span>大于等于</span> <code>JAE &nbsp;CF=0</code></li>
+          <li><span>大于</span>     <code>JA &nbsp;&nbsp;CF=0, ZF=0</code></li>
+          <li><span>小于等于</span> <code>JBE &nbsp;CF=1 或 ZF=1</code></li>
+          <li><span>小于</span>     <code>JB &nbsp;&nbsp;CF=1</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="summary">
+      <div class="sum-title">一句话总结</div>
+      <p><strong>CF</strong> 只记录"二进制借位"，对有符号数毫无意义，会给出错误结论。</p>
+      <p><strong>SF + OF</strong> 的配合能正确反映有符号运算后的真实正负关系——OF 像一个"纠错位"，在发生溢出时翻转判断逻辑，使 SF 的含义始终可信。</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>x86 有符号数比较 · 标志位详解</span>
+    <span>SF &nbsp;/&nbsp; OF &nbsp;/&nbsp; CF &nbsp;/&nbsp; JGE &nbsp;/&nbsp; JAE</span>
+  </footer>
+
+</div>
+</body>
+</html>

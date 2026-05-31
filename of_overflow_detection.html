@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OF 溢出标志的硬件检测原理</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #ffffff;
+    --bg2:       #f7f6f3;
+    --bg3:       #f0ede8;
+    --border:    #ddd9d2;
+    --accent:    #8b6914;
+    --accent2:   #1e6e8a;
+    --accent3:   #5a3e9b;
+    --text:      #2a2724;
+    --text-muted:#7a756e;
+    --green:     #2e7d4f;
+    --red:       #b03030;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 300;
+    line-height: 1.85;
+    min-height: 100vh;
+    padding: 60px 24px;
+  }
+
+  .page { max-width: 840px; margin: 0 auto; }
+
+  header {
+    border-left: 3px solid var(--accent);
+    padding-left: 24px;
+    margin-bottom: 56px;
+  }
+  header .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  header h1 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: #1a1714;
+    line-height: 1.35;
+  }
+  header p {
+    margin-top: 10px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  section { margin-bottom: 52px; }
+
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  h2 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #1a1714;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #1a1714;
+    margin: 28px 0 14px;
+  }
+  p { margin-bottom: 14px; font-size: 0.93rem; }
+
+  /* ── 公式卡片 ── */
+  .formula-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 28px 32px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+  .formula-card .formula {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+    line-height: 1.6;
+  }
+  .formula-card .desc {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  /* ── 全加器示意 ── */
+  .adder-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 22px 28px;
+    margin-bottom: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    line-height: 2;
+    color: var(--text);
+    overflow-x: auto;
+  }
+  .adder-box .label-text { color: var(--text-muted); font-size: 0.8rem; }
+  .adder-box .hl { color: var(--accent); font-weight: 600; }
+  .adder-box .hl2 { color: var(--accent2); font-weight: 600; }
+
+  /* ── 表格 ── */
+  .table-wrap {
+    overflow-x: auto;
+    margin-bottom: 24px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  thead tr { background: var(--bg3); }
+  thead th {
+    padding: 12px 16px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--bg2); }
+  td {
+    padding: 12px 16px;
+    color: var(--text);
+    vertical-align: middle;
+  }
+  td code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    background: var(--bg3);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+  }
+  .ok   { color: var(--green); font-weight: 500; }
+  .fail { color: var(--red);   font-weight: 500; }
+
+  tr.highlight td { background: rgba(176,48,48,0.04); }
+
+  /* ── 说明块 ── */
+  .note {
+    background: var(--bg2);
+    border-left: 3px solid var(--accent2);
+    border-radius: 0 4px 4px 0;
+    padding: 18px 22px;
+    margin-bottom: 24px;
+    font-size: 0.9rem;
+    color: var(--text);
+  }
+  .note strong { color: var(--accent2); font-weight: 500; }
+
+  .note-gold { border-left-color: var(--accent); }
+  .note-gold strong { color: var(--accent); }
+
+  .note-red { border-left-color: var(--red); }
+  .note-red strong { color: var(--red); }
+
+  /* ── 代码块 ── */
+  .code-block {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 18px 22px;
+    margin-bottom: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text);
+    line-height: 1.9;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .code-block .cm { color: var(--text-muted); }
+  .code-block .hl { color: var(--red); font-weight: 600; }
+  .code-block .ok { color: var(--green); font-weight: 600; }
+
+  /* ── 分隔线 ── */
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 36px 0;
+  }
+
+  /* ── 页脚 ── */
+  footer {
+    margin-top: 72px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (max-width: 560px) {
+    .formula-card { flex-direction: column; gap: 16px; }
+    header h1 { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="label">x86 汇编 · 溢出检测</div>
+    <h1>OF 溢出标志的硬件检测原理</h1>
+    <p>OF = Carry_In(bit7) XOR Carry_Out(bit7) —— 为什么进出不一致就意味着溢出</p>
+  </header>
+
+  <!-- ══════════════════════════════════
+       第一节：本质
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">01 &nbsp;/&nbsp; 核心问题</div>
+    <h2>OF 关心的只有一件事</h2>
+
+    <div class="note note-gold">
+      <strong>运算后，符号位（bit7）还能不能正确反映结果的正负？</strong><br>
+      符号位的值由三个输入决定：A[7]、B[7]、Carry_In。如果进位的"进"和"出"不一致，就说明符号位被篡改了。
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       第二节：公式与全加器
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">02 &nbsp;/&nbsp; 公式与全加器</div>
+    <h2>bit7 全加器的结构</h2>
+
+    <div class="formula-card">
+      <div class="formula">
+        OF = Carry_In(bit7)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp; XOR<br>
+        &nbsp;&nbsp;&nbsp;&nbsp; Carry_Out(bit7)
+      </div>
+      <div class="desc">
+        Carry_In：从 bit6 向 bit7 传入的进位<br>
+        Carry_Out：从 bit7 向更高位溢出的进位（= CF）
+      </div>
+    </div>
+
+    <p>bit7 就是一个全加器，三个输入，两个输出：</p>
+
+    <div class="adder-box">
+<span class="label-text">输入：</span><span class="hl">A[7]</span>, <span class="hl">B[7]</span>, <span class="hl2">Carry_In</span>（从 bit6 来的进位）
+<span class="label-text">输出：</span><span class="hl">Sum[7]</span>（结果的符号位）, <span class="hl2">Carry_Out</span>（向更高位的进位 = CF）
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       第三节：三类情况分析
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">03 &nbsp;/&nbsp; 分类分析</div>
+    <h2>按操作数符号分三大类</h2>
+
+    <!-- 第一类 -->
+    <h3>第一类：A、B 符号不同（一正一负）</h3>
+
+    <div class="note">
+      <strong>正数加负数，结果绝对值一定变小，永远不可能溢出。</strong>
+    </div>
+
+    <p>A[7] XOR B[7] = 1（符号不同），无论 Carry_In 是什么，进出始终一致：</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>A[7]</th>
+            <th>B[7]</th>
+            <th>Carry_In</th>
+            <th>计算过程</th>
+            <th>Sum[7]</th>
+            <th>Carry_Out</th>
+            <th>OF = In XOR Out</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>0</code></td>
+            <td><code>1</code></td>
+            <td><code>0</code></td>
+            <td>0+1+0 = 01</td>
+            <td><code>1</code></td>
+            <td><code>0</code></td>
+            <td class="ok">0 XOR 0 = 0 ✔</td>
+          </tr>
+          <tr>
+            <td><code>0</code></td>
+            <td><code>1</code></td>
+            <td><code>1</code></td>
+            <td>0+1+1 = 10</td>
+            <td><code>0</code></td>
+            <td><code>1</code></td>
+            <td class="ok">1 XOR 1 = 0 ✔</td>
+          </tr>
+          <tr>
+            <td><code>1</code></td>
+            <td><code>0</code></td>
+            <td><code>0</code></td>
+            <td>1+0+0 = 01</td>
+            <td><code>1</code></td>
+            <td><code>0</code></td>
+            <td class="ok">0 XOR 0 = 0 ✔</td>
+          </tr>
+          <tr>
+            <td><code>1</code></td>
+            <td><code>0</code></td>
+            <td><code>1</code></td>
+            <td>1+0+1 = 10</td>
+            <td><code>0</code></td>
+            <td><code>1</code></td>
+            <td class="ok">1 XOR 1 = 0 ✔</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>进位进来一定也出去，或者不进来也不出去——进出始终一致，OF 永远 = 0。</p>
+
+    <hr>
+
+    <!-- 第二类 -->
+    <h3>第二类：两个正数相加（A[7]=0，B[7]=0）</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Carry_In</th>
+            <th>计算过程</th>
+            <th>Sum[7]</th>
+            <th>Carry_Out</th>
+            <th>OF</th>
+            <th>发生了什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>0</code></td>
+            <td>0+0+0 = 00</td>
+            <td><code>0</code></td>
+            <td><code>0</code></td>
+            <td class="ok">0</td>
+            <td class="ok">符号位 = 0（正数），正确 ✔</td>
+          </tr>
+          <tr class="highlight">
+            <td><code>1</code></td>
+            <td>0+0+1 = 01</td>
+            <td><code>1</code></td>
+            <td><code>0</code></td>
+            <td class="fail">1</td>
+            <td class="fail">低位进位把符号从 0 挤成 1，正数变负数 ❌</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note note-red">
+      <strong>Carry_In=1 时溢出：</strong>低位的进位冲进来，把 0+0 变成了 1，符号位被翻转。但这个进位没有继续输出（Carry_Out=0），说明它被困在了 bit7 里，篡改了符号位。
+    </div>
+
+    <hr>
+
+    <!-- 第三类 -->
+    <h3>第三类：两个负数相加（A[7]=1，B[7]=1）</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Carry_In</th>
+            <th>计算过程</th>
+            <th>Sum[7]</th>
+            <th>Carry_Out</th>
+            <th>OF</th>
+            <th>发生了什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="highlight">
+            <td><code>0</code></td>
+            <td>1+1+0 = 10</td>
+            <td><code>0</code></td>
+            <td><code>1</code></td>
+            <td class="fail">1</td>
+            <td class="fail">两个 1 产生进位，符号清成 0，负数变正数 ❌</td>
+          </tr>
+          <tr>
+            <td><code>1</code></td>
+            <td>1+1+1 = 11</td>
+            <td><code>1</code></td>
+            <td><code>1</code></td>
+            <td class="ok">0</td>
+            <td class="ok">进位进来也出去，符号保持 1（负数），正确 ✔</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note note-red">
+      <strong>Carry_In=0 时溢出：</strong>1+1=10，产生了 Carry_Out，但这个进位不是从低位传来的，而是 bit7 自己产生的。进位凭空出现并带走了符号位的 1，把结果变成了正数。
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       第四节：完整真值表
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">04 &nbsp;/&nbsp; 完整真值表</div>
+    <h2>所有 8 种组合汇总</h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>A[7]</th>
+            <th>B[7]</th>
+            <th>Carry_In</th>
+            <th>Carry_Out</th>
+            <th>OF = In XOR Out</th>
+            <th>含义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>0</code></td>
+            <td><code>0</code></td>
+            <td><code>0</code></td>
+            <td><code>0</code></td>
+            <td class="ok">0</td>
+            <td>两正相加，无溢出</td>
+          </tr>
+          <tr class="highlight">
+            <td><code>0</code></td>
+            <td><code>0</code></td>
+            <td><code>1</code></td>
+            <td><code>0</code></td>
+            <td class="fail">1</td>
+            <td>进位被困，正→负</td>
+          </tr>
+          <tr>
+            <td><code>0</code></td>
+            <td><code>1</code></td>
+            <td><code>0</code></td>
+            <td><code>0</code></td>
+            <td class="ok">0</td>
+            <td>一正一负，不可能溢出</td>
+          </tr>
+          <tr>
+            <td><code>0</code></td>
+            <td><code>1</code></td>
+            <td><code>1</code></td>
+            <td><code>1</code></td>
+            <td class="ok">0</td>
+            <td>一正一负，不可能溢出</td>
+          </tr>
+          <tr>
+            <td><code>1</code></td>
+            <td><code>0</code></td>
+            <td><code>0</code></td>
+            <td><code>0</code></td>
+            <td class="ok">0</td>
+            <td>一负一正，不可能溢出</td>
+          </tr>
+          <tr>
+            <td><code>1</code></td>
+            <td><code>0</code></td>
+            <td><code>1</code></td>
+            <td><code>1</code></td>
+            <td class="ok">0</td>
+            <td>一负一正，不可能溢出</td>
+          </tr>
+          <tr class="highlight">
+            <td><code>1</code></td>
+            <td><code>1</code></td>
+            <td><code>0</code></td>
+            <td><code>1</code></td>
+            <td class="fail">1</td>
+            <td>进位凭空产生，负→正</td>
+          </tr>
+          <tr>
+            <td><code>1</code></td>
+            <td><code>1</code></td>
+            <td><code>1</code></td>
+            <td><code>1</code></td>
+            <td class="ok">0</td>
+            <td>两负相加，进位穿过，无溢出</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note note-gold">
+      <strong>规律：</strong>全部 8 种组合中，只有 2 种情况 OF=1——恰好对应"两正数加出负数"和"两负数加出正数"，这正是有符号溢出的两种情形。Carry_In XOR Carry_Out 能精准区分它们。
+    </div>
+  </section>
+
+  <footer>
+    <span>OF 溢出标志 · 硬件检测原理</span>
+    <span>Carry_In &nbsp;XOR&nbsp; Carry_Out</span>
+  </footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>补码转换与补码原理</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #ffffff;
+    --bg2:       #f7f6f3;
+    --bg3:       #f0ede8;
+    --border:    #ddd9d2;
+    --accent:    #8b6914;
+    --accent2:   #1e6e8a;
+    --accent3:   #5a3e9b;
+    --text:      #2a2724;
+    --text-muted:#7a756e;
+    --green:     #2e7d4f;
+    --red:       #b03030;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 300;
+    line-height: 1.85;
+    min-height: 100vh;
+    padding: 60px 24px;
+  }
+
+  .page { max-width: 840px; margin: 0 auto; }
+
+  header {
+    border-left: 3px solid var(--accent);
+    padding-left: 24px;
+    margin-bottom: 56px;
+  }
+  header .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  header h1 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: #1a1714;
+    line-height: 1.35;
+  }
+  header p {
+    margin-top: 10px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  section { margin-bottom: 56px; }
+
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  h2 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #1a1714;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #1a1714;
+    margin: 28px 0 14px;
+  }
+  p { margin-bottom: 14px; font-size: 0.93rem; }
+
+  .code-block {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 18px 22px;
+    margin-bottom: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text);
+    line-height: 1.9;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .code-block .cm { color: var(--text-muted); }
+  .code-block .hl { color: var(--red); font-weight: 600; }
+  .code-block .ok { color: var(--green); font-weight: 600; }
+  .code-block .ac { color: var(--accent); font-weight: 600; }
+
+  .table-wrap {
+    overflow-x: auto;
+    margin-bottom: 24px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  thead tr { background: var(--bg3); }
+  thead th {
+    padding: 12px 16px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--bg2); }
+  td {
+    padding: 12px 16px;
+    color: var(--text);
+    vertical-align: middle;
+  }
+  td code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    background: var(--bg3);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+  }
+  .ok   { color: var(--green); font-weight: 500; }
+  .fail { color: var(--red);   font-weight: 500; }
+
+  tr.highlight td { background: rgba(139,105,20,0.05); }
+
+  .note {
+    background: var(--bg2);
+    border-left: 3px solid var(--accent2);
+    border-radius: 0 4px 4px 0;
+    padding: 18px 22px;
+    margin-bottom: 24px;
+    font-size: 0.9rem;
+    color: var(--text);
+  }
+  .note strong { color: var(--accent2); font-weight: 500; }
+
+  .note-gold { border-left-color: var(--accent); }
+  .note-gold strong { color: var(--accent); }
+
+  .note-purple { border-left-color: var(--accent3); }
+  .note-purple strong { color: var(--accent3); }
+
+  .formula-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 28px 32px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+  .formula-card .formula {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+    line-height: 1.6;
+  }
+  .formula-card .desc {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .method-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 22px 26px;
+    margin-bottom: 24px;
+  }
+  .method-card .mc-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .method-card .mc-label.fast   { color: var(--green); }
+  .method-card .mc-label.medium { color: var(--accent2); }
+  .method-card .mc-label.slow   { color: var(--text-muted); }
+  .method-card h3 { margin-top: 0; margin-bottom: 12px; }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 36px 0;
+  }
+
+  footer {
+    margin-top: 72px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (max-width: 560px) {
+    .formula-card { flex-direction: column; gap: 16px; }
+    header h1 { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="label">数制转换 · 补码原理</div>
+    <h1>补码快速转换与 2ⁿ 减法原理</h1>
+    <p>补码的快速心算技巧，以及 模 − 补码 = 绝对值 的数学本质</p>
+  </header>
+
+  <!-- ══════════════════════════════════
+       第一部分：补码快速转换
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">01 &nbsp;/&nbsp; 补码二进制 → 十进制</div>
+    <h2>补码的快速转换</h2>
+
+    <p>先看最高位：如果是 0，就是正数，直接按权值相加。如果是 1，是负数，用以下方法：</p>
+
+    <!-- 方法一：取反加1 + 模-补码 -->
+    <div class="method-card">
+      <div class="mc-label medium">通用 · 不会出错</div>
+      <h3>方法一：取反加 1</h3>
+
+      <p>以 <code>1010 1111</code> 为例，最高位是 1，说明是负数：</p>
+
+      <div class="code-block">原数：      <span class="hl">1010 1111</span>
+按位取反：  0101 0000
+加 1：      0101 0001 = <span class="ac">81</span>
+
+结果 = <span class="ok">−81</span></div>
+
+      <h3>为什么取反加 1 能得到绝对值？</h3>
+
+      <p>这个操作本质上就是在算 <strong>模 − 补码</strong>：</p>
+
+      <div class="formula-card">
+        <div class="formula">模 − 补码 = |X|</div>
+        <div class="desc">
+          8 位的模 = 2⁸ = 256<br>
+          对负数 X，补码定义为 2ⁿ − |X|<br>
+          所以 2ⁿ − 补码 = |X|
+        </div>
+      </div>
+
+      <p>而"取反加 1"正好等价于"模 − 补码"。推导如下：</p>
+
+      <div class="code-block"><span class="cm">恒等式：</span>  补码 + ~补码 = 1111 1111 = 2ⁿ − 1 = <span class="ac">255</span>
+
+<span class="cm">所以：</span>    ~补码 = 255 − 补码
+
+<span class="cm">取反加1：</span> ~补码 + 1
+            = (255 − 补码) + 1
+            = 256 − 补码
+            = <span class="ok">2ⁿ − 补码</span>
+            = <span class="ok">|X|</span></div>
+
+      <div class="note note-gold">
+        <strong>结论：</strong>取反加 1 并不是一个"碰巧有效的技巧"，它的数学本质就是 模 − 补码 = 绝对值。取反得到 2ⁿ−1−补码，再加 1 补上差的那个 1，刚好等于 2ⁿ−补码。
+      </div>
+
+      <p>用 −81 验证：</p>
+
+      <div class="code-block"><span class="cm">补码：</span>       1010 1111 = <span class="ac">175</span>
+
+<span class="cm">取反：</span>       0101 0000 = 255 − 175 = <span class="ac">80</span>
+
+<span class="cm">加 1：</span>       0101 0001 = 80 + 1 = <span class="ac">81</span>
+
+<span class="cm">等价于：</span>     256 − 175 = <span class="ok">81 = |−81|  ✔</span></div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>负数</th>
+              <th>补码（十进制）</th>
+              <th>补码（二进制）</th>
+              <th>取反</th>
+              <th>加 1</th>
+              <th>= 256 − 补码</th>
+              <th>验证</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>−1</td>
+              <td>255</td>
+              <td><code>1111 1111</code></td>
+              <td>0000 0000 = 0</td>
+              <td>1</td>
+              <td>256 − 255 = 1</td>
+              <td class="ok">✔</td>
+            </tr>
+            <tr>
+              <td>−50</td>
+              <td>206</td>
+              <td><code>1100 1110</code></td>
+              <td>0011 0001 = 49</td>
+              <td>50</td>
+              <td>256 − 206 = 50</td>
+              <td class="ok">✔</td>
+            </tr>
+            <tr>
+              <td>−81</td>
+              <td>175</td>
+              <td><code>1010 1111</code></td>
+              <td>0101 0000 = 80</td>
+              <td>81</td>
+              <td>256 − 175 = 81</td>
+              <td class="ok">✔</td>
+            </tr>
+            <tr>
+              <td>−127</td>
+              <td>129</td>
+              <td><code>1000 0001</code></td>
+              <td>0111 1110 = 126</td>
+              <td>127</td>
+              <td>256 − 129 = 127</td>
+              <td class="ok">✔</td>
+            </tr>
+            <tr>
+              <td>−128</td>
+              <td>128</td>
+              <td><code>1000 0000</code></td>
+              <td>0111 1111 = 127</td>
+              <td>128</td>
+              <td>256 − 128 = 128</td>
+              <td class="ok">✔</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <hr>
+
+    <!-- 方法二：−128 + 剩余位 -->
+    <div class="method-card">
+      <div class="mc-label fast">★ 最快 · 考试推荐</div>
+      <h3>方法二：−128 + 剩余位</h3>
+
+      <p>8 位补码中，最高位的权值是 <strong>−128</strong>（不是 +128）：</p>
+
+      <div class="code-block"><span class="hl">1</span>010 1111
+
+最高位 = 1 → <span class="hl">−128</span>
+剩余 7 位 = 010 1111 = 32+8+4+2+1 = <span class="ac">47</span>
+
+−128 + 47 = <span class="ok">−81</span></div>
+
+      <div class="note note-gold">
+        <strong>优势：</strong>不需要取反，直接算，一步到位。只需记住最高位权值是 −128（16 位是 −32768）。
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       第二部分：2ⁿ − 补码 = 正数
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">02 &nbsp;/&nbsp; 补码的数学本质</div>
+    <h2>为什么 2⁸ − 负数的补码 = 对应正数</h2>
+
+    <h3>从补码的定义推导</h3>
+
+    <div class="formula-card">
+      <div class="formula">补码 = 2ⁿ − |X|</div>
+      <div class="desc">
+        这就是补码的定义：<br>
+        负数 X 的补码等于模（2ⁿ）减去它的绝对值。
+      </div>
+    </div>
+
+    <p>把定义倒过来：</p>
+
+    <div class="code-block"><span class="cm">定义：</span>    补码 = 2ⁿ − |X|
+
+<span class="cm">反推：</span>    2ⁿ − 补码 = 2ⁿ − (2ⁿ − |X|)
+                     = 2ⁿ − 2ⁿ + |X|
+                     = <span class="ok">|X|</span></div>
+
+    <div class="note note-gold">
+      <strong>结论：</strong>这不是巧合，这就是定义本身的逆运算。模 − 补码 = |X| 是补码编码方式的直接结果。
+    </div>
+
+    <h3>为什么补码要这样定义</h3>
+
+    <p>补码的设计目的是让减法变成加法。想让 A + (−B) 在硬件上直接用加法器完成：</p>
+
+    <div class="code-block">A + [−B 的补码]
+= A + (2⁸ − B)
+= A − B + 256
+           <span class="hl">↑</span>
+       <span class="hl">256 = 2⁸，对 8 位寄存器来说</span>
+       <span class="hl">从最高位溢出丢掉</span>
+
+寄存器里剩下：<span class="ok">A − B</span>  ← 正确的减法结果</div>
+
+    <div class="note note-purple">
+      <strong>本质：</strong>补码的定义 <code>2ⁿ − |X|</code> 不是随意选择，而是为了让加法器同时完成加法和减法。模 − 补码 = |X| 是这套编码体系的自然推论，取反加 1 则是这个减法在二进制层面的具体操作方式。三者是同一件事的不同表述。
+    </div>
+  </section>
+
+  <footer>
+    <span>补码转换 · 模减补码原理</span>
+    <span>取反加 1 &nbsp;/&nbsp; −128 + 剩余 &nbsp;/&nbsp; 2ⁿ − |X|</span>
+  </footer>
+
+</div>
+</body>
+</html>

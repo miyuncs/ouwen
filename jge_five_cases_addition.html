@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JGE 五种情况详解 — SF=OF 的完整推导</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #ffffff;
+    --bg2:       #f7f6f3;
+    --bg3:       #f0ede8;
+    --border:    #ddd9d2;
+    --accent:    #8b6914;
+    --accent2:   #1e6e8a;
+    --accent3:   #5a3e9b;
+    --text:      #2a2724;
+    --text-muted:#7a756e;
+    --green:     #2e7d4f;
+    --red:       #b03030;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 300;
+    line-height: 1.85;
+    min-height: 100vh;
+    padding: 60px 24px;
+  }
+
+  .page { max-width: 860px; margin: 0 auto; }
+
+  header {
+    border-left: 3px solid var(--accent);
+    padding-left: 24px;
+    margin-bottom: 56px;
+  }
+  header .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  header h1 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: #1a1714;
+    line-height: 1.35;
+  }
+  header p {
+    margin-top: 10px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  section { margin-bottom: 56px; }
+
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  h2 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #1a1714;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #1a1714;
+    margin: 28px 0 14px;
+  }
+  p { margin-bottom: 14px; font-size: 0.93rem; }
+
+  .code-block {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 18px 22px;
+    margin-bottom: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text);
+    line-height: 1.9;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .code-block .cm { color: var(--text-muted); }
+  .code-block .hl { color: var(--red); font-weight: 600; }
+  .code-block .ok { color: var(--green); font-weight: 600; }
+  .code-block .ac { color: var(--accent); font-weight: 600; }
+
+  .table-wrap {
+    overflow-x: auto;
+    margin-bottom: 24px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  thead tr { background: var(--bg3); }
+  thead th {
+    padding: 12px 16px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--bg2); }
+  td {
+    padding: 12px 16px;
+    color: var(--text);
+    vertical-align: middle;
+  }
+  td code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    background: var(--bg3);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+  }
+  .ok   { color: var(--green); font-weight: 500; }
+  .fail { color: var(--red);   font-weight: 500; }
+  .flag-eq  { color: var(--green); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+  .flag-neq { color: var(--red);   font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+
+  tr.highlight td { background: rgba(139,105,20,0.05); }
+  tr.highlight-red td { background: rgba(176,48,48,0.04); }
+
+  .note {
+    background: var(--bg2);
+    border-left: 3px solid var(--accent2);
+    border-radius: 0 4px 4px 0;
+    padding: 18px 22px;
+    margin-bottom: 24px;
+    font-size: 0.9rem;
+    color: var(--text);
+  }
+  .note strong { color: var(--accent2); font-weight: 500; }
+
+  .note-gold { border-left-color: var(--accent); }
+  .note-gold strong { color: var(--accent); }
+
+  .note-purple { border-left-color: var(--accent3); }
+  .note-purple strong { color: var(--accent3); }
+
+  .note-red { border-left-color: var(--red); }
+  .note-red strong { color: var(--red); }
+
+  .note-green { border-left-color: var(--green); }
+  .note-green strong { color: var(--green); }
+
+  .formula-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 28px 32px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+  .formula-card .formula {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+    line-height: 1.6;
+  }
+  .formula-card .desc {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  /* ── 情况卡片 ── */
+  .case-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+  .case-card .case-header {
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .case-card .case-header .case-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    width: 28px;
+    height: 28px;
+    line-height: 28px;
+    text-align: center;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .case-card .case-header .case-title {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #1a1714;
+  }
+  .case-card .case-header .case-result {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-weight: 600;
+  }
+  .case-card.jump .case-header { background: rgba(46,125,79,0.06); }
+  .case-card.jump .case-num { background: var(--green); }
+  .case-card.jump .case-result { background: rgba(46,125,79,0.1); color: var(--green); }
+  .case-card.nojump .case-header { background: rgba(176,48,48,0.05); }
+  .case-card.nojump .case-num { background: var(--red); }
+  .case-card.nojump .case-result { background: rgba(176,48,48,0.08); color: var(--red); }
+
+  .case-card .case-body { padding: 20px 22px; }
+  .case-card .case-body p { font-size: 0.9rem; margin-bottom: 12px; }
+
+  .flag-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .flag-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .flag-item .flag-name { color: var(--text-muted); }
+  .flag-item .flag-val { font-weight: 600; }
+  .flag-item .flag-val.v0 { color: var(--green); }
+  .flag-item .flag-val.v1 { color: var(--red); }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 36px 0; }
+
+  .summary-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 24px 28px;
+  }
+  .summary-box .sum-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .summary-box p { font-size: 0.93rem; margin-bottom: 8px; }
+  .summary-box p:last-child { margin-bottom: 0; }
+  .summary-box strong { color: var(--accent); font-weight: 500; }
+
+  footer {
+    margin-top: 72px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (max-width: 560px) {
+    .formula-card { flex-direction: column; gap: 16px; }
+    .flag-row { gap: 10px; }
+    header h1 { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="label">x86 汇编 · 有符号比较</div>
+    <h1>JGE 五种情况逐一详解</h1>
+    <p>CMP A, B 之后，SF 和 OF 的每一种组合为什么能正确判断 A ≥ B<br>所有计算均使用 CPU 真实执行方式：A + (~B) + 1</p>
+  </header>
+
+  <!-- ══════════════════════════════════
+       总览表
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">01 &nbsp;/&nbsp; 总览表</div>
+    <h2>五种情况一览</h2>
+
+    <p>以 8 位有符号数为例（范围 −128 ~ +127），<code>CMP A, B</code> 即 A − B，CPU 内部执行 A + (~B) + 1：</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>情况</th>
+            <th>A − B 结果</th>
+            <th>SF</th>
+            <th>OF</th>
+            <th>SF = OF?</th>
+            <th>跳转?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="highlight">
+            <td>① A &gt; B，无溢出</td>
+            <td>正数</td>
+            <td><code>0</code></td>
+            <td><code>0</code></td>
+            <td><span class="flag-eq">0 = 0 ✔</span></td>
+            <td class="ok">跳转</td>
+          </tr>
+          <tr class="highlight">
+            <td>② A = B，无溢出</td>
+            <td>零</td>
+            <td><code>0</code></td>
+            <td><code>0</code></td>
+            <td><span class="flag-eq">0 = 0 ✔</span></td>
+            <td class="ok">跳转</td>
+          </tr>
+          <tr class="highlight-red">
+            <td>③ A &lt; B，无溢出</td>
+            <td>负数</td>
+            <td><code>1</code></td>
+            <td><code>0</code></td>
+            <td><span class="flag-neq">1 ≠ 0 ✘</span></td>
+            <td class="fail">不跳</td>
+          </tr>
+          <tr class="highlight-red">
+            <td>④ A &lt; B，有溢出</td>
+            <td>符号被翻转</td>
+            <td><code>0</code></td>
+            <td><code>1</code></td>
+            <td><span class="flag-neq">0 ≠ 1 ✘</span></td>
+            <td class="fail">不跳</td>
+          </tr>
+          <tr class="highlight">
+            <td>⑤ A &gt; B，有溢出</td>
+            <td>符号被翻转</td>
+            <td><code>1</code></td>
+            <td><code>1</code></td>
+            <td><span class="flag-eq">1 = 1 ✔</span></td>
+            <td class="ok">跳转</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       五种情况逐一详解
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">02 &nbsp;/&nbsp; 逐一详解</div>
+    <h2>每种情况的具体推导（全部使用补码加法）</h2>
+
+    <!-- ── 情况 ① ── -->
+    <div class="case-card jump">
+      <div class="case-header">
+        <div class="case-num">1</div>
+        <div class="case-title">A &gt; B，无溢出</div>
+        <div class="case-result">SF=0 OF=0 → 跳转 ✔</div>
+      </div>
+      <div class="case-body">
+        <p><strong>例子：A = 50，B = 20</strong>，真实结果 50 − 20 = 30，在 −128~+127 范围内，无溢出。</p>
+
+        <div class="code-block"><span class="cm">CPU 执行：A + (~B) + 1</span>
+
+  A  = 50  → <span class="ac">0011 0010</span>
+  B  = 20  → 0001 0100
+  ~B       → <span class="ac">1110 1011</span>
+
+    0011 0010       <span class="cm">(A)</span>
+  + 1110 1011       <span class="cm">(~B)</span>
+  +         1       <span class="cm">(+1)</span>
+  ───────────
+  <span class="ok">1 0001 1110</span>
+  <span class="cm">↑</span>
+  <span class="cm">Carry_Out = 1（溢出到第9位）</span>
+
+  寄存器结果：0001 1110 = <span class="ok">30</span>（正数）
+
+<span class="cm">Carry_In(bit7)  = 1（bit6 向 bit7 的进位）</span>
+<span class="cm">Carry_Out(bit7) = 1（bit7 向更高位的进位）</span>
+<span class="cm">OF = 1 XOR 1 = </span><span class="ok">0</span><span class="cm">（无溢出）</span></div>
+
+        <div class="flag-row">
+          <div class="flag-item"><span class="flag-name">SF</span> <span class="flag-val v0">0</span></div>
+          <div class="flag-item"><span class="flag-name">OF</span> <span class="flag-val v0">0</span></div>
+          <div class="flag-item"><span class="flag-name">SF=OF?</span> <span class="flag-val v0">0=0 ✔</span></div>
+        </div>
+
+        <p><strong>分析：</strong>结果 30 是正数，最高位为 0，所以 SF=0。Carry_In 和 Carry_Out 都是 1，进位"穿过"了 bit7，符号位未被篡改，OF=0。SF 如实反映了"结果为正"，不需要任何纠正。SF=OF=0，XOR 结果为 0，说明 A−B ≥ 0，即 A ≥ B，JGE 跳转，正确。</p>
+
+        <div class="note note-green">
+          <strong>这是最简单的情况：</strong>没有溢出，SF 可信，SF=0 直接说明结果是正数，A &gt; B。
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 情况 ② ── -->
+    <div class="case-card jump">
+      <div class="case-header">
+        <div class="case-num">2</div>
+        <div class="case-title">A = B，无溢出</div>
+        <div class="case-result">SF=0 OF=0 → 跳转 ✔</div>
+      </div>
+      <div class="case-body">
+        <p><strong>例子：A = 30，B = 30</strong>，真实结果 30 − 30 = 0，无溢出。</p>
+
+        <div class="code-block"><span class="cm">CPU 执行：A + (~B) + 1</span>
+
+  A  = 30  → <span class="ac">0001 1110</span>
+  B  = 30  → 0001 1110
+  ~B       → <span class="ac">1110 0001</span>
+
+    0001 1110       <span class="cm">(A)</span>
+  + 1110 0001       <span class="cm">(~B)</span>
+  +         1       <span class="cm">(+1)</span>
+  ───────────
+  <span class="ok">1 0000 0000</span>
+  <span class="cm">↑</span>
+  <span class="cm">Carry_Out = 1（溢出到第9位）</span>
+
+  寄存器结果：0000 0000 = <span class="ok">0</span>
+
+<span class="cm">Carry_In(bit7)  = 1（bit6 向 bit7 的进位）</span>
+<span class="cm">Carry_Out(bit7) = 1（bit7 向更高位的进位）</span>
+<span class="cm">OF = 1 XOR 1 = </span><span class="ok">0</span><span class="cm">（无溢出）</span></div>
+
+        <div class="flag-row">
+          <div class="flag-item"><span class="flag-name">SF</span> <span class="flag-val v0">0</span></div>
+          <div class="flag-item"><span class="flag-name">OF</span> <span class="flag-val v0">0</span></div>
+          <div class="flag-item"><span class="flag-name">ZF</span> <span class="flag-val v1">1</span></div>
+          <div class="flag-item"><span class="flag-name">SF=OF?</span> <span class="flag-val v0">0=0 ✔</span></div>
+        </div>
+
+        <p><strong>分析：</strong>结果为 0，最高位为 0，SF=0。Carry_In 和 Carry_Out 都是 1，进位穿过了 bit7，OF=0。零既不是正数也不是负数，但在 JGE（大于等于）的语义中，等于也应该跳转。SF=OF=0 满足条件，跳转，正确。</p>
+
+        <div class="note note-green">
+          <strong>注意：</strong>此时 ZF=1（结果为零）。实际上 JGE 只看 SF=OF，不看 ZF。等于的情况恰好也满足 SF=OF，所以"大于"和"等于"被同一个条件统一了。如果想单独判断"大于"（不含等于），用 JG，它额外要求 ZF=0。
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 情况 ③ ── -->
+    <div class="case-card nojump">
+      <div class="case-header">
+        <div class="case-num">3</div>
+        <div class="case-title">A &lt; B，无溢出</div>
+        <div class="case-result">SF=1 OF=0 → 不跳 ✘</div>
+      </div>
+      <div class="case-body">
+        <p><strong>例子：A = 20，B = 50</strong>，真实结果 20 − 50 = −30，在 −128~+127 范围内，无溢出。</p>
+
+        <div class="code-block"><span class="cm">CPU 执行：A + (~B) + 1</span>
+
+  A  = 20  → <span class="ac">0001 0100</span>
+  B  = 50  → 0011 0010
+  ~B       → <span class="ac">1100 1101</span>
+
+    0001 0100       <span class="cm">(A)</span>
+  + 1100 1101       <span class="cm">(~B)</span>
+  +         1       <span class="cm">(+1)</span>
+  ───────────
+  <span class="hl">0 1110 0010</span>
+  <span class="cm">↑</span>
+  <span class="cm">Carry_Out = 0（没有溢出到第9位）</span>
+
+  寄存器结果：1110 0010 = <span class="hl">−30</span>（补码）
+
+<span class="cm">Carry_In(bit7)  = 0（bit6 没有向 bit7 进位）</span>
+<span class="cm">Carry_Out(bit7) = 0（bit7 没有向更高位进位）</span>
+<span class="cm">OF = 0 XOR 0 = </span><span class="ok">0</span><span class="cm">（无溢出）</span></div>
+
+        <div class="flag-row">
+          <div class="flag-item"><span class="flag-name">SF</span> <span class="flag-val v1">1</span></div>
+          <div class="flag-item"><span class="flag-name">OF</span> <span class="flag-val v0">0</span></div>
+          <div class="flag-item"><span class="flag-name">SF=OF?</span> <span class="flag-val v1">1≠0 ✘</span></div>
+        </div>
+
+        <p><strong>分析：</strong>结果 −30 是负数，最高位为 1，SF=1。Carry_In 和 Carry_Out 都是 0，进出一致，符号位未被篡改，OF=0。SF 如实反映了"结果为负"，不需要纠正。SF≠OF，XOR 结果为 1，说明 A−B &lt; 0，即 A &lt; B，JGE 不跳，正确。</p>
+
+        <div class="note note-red">
+          <strong>同样简单：</strong>没有溢出，SF 可信，SF=1 直接说明结果是负数，A &lt; B，不应该跳转。
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 情况 ④ ── -->
+    <div class="case-card nojump">
+      <div class="case-header">
+        <div class="case-num">4</div>
+        <div class="case-title">A &lt; B，有溢出（负溢出）</div>
+        <div class="case-result">SF=0 OF=1 → 不跳 ✘</div>
+      </div>
+      <div class="case-body">
+        <p><strong>例子：A = −100，B = 80</strong>，真实结果 −100 − 80 = −180，超出 −128 的下限，发生负溢出。</p>
+
+        <div class="code-block"><span class="cm">CPU 执行：A + (~B) + 1</span>
+
+  A  = −100 → <span class="ac">1001 1100</span>（补码）
+  B  =   80 → 0101 0000
+  ~B        → <span class="ac">1010 1111</span>
+
+    1001 1100       <span class="cm">(A)</span>
+  + 1010 1111       <span class="cm">(~B)</span>
+  +         1       <span class="cm">(+1)</span>
+  ───────────
+  <span class="hl">1 0100 1100</span>
+  <span class="cm">↑</span>
+  <span class="cm">Carry_Out = 1（溢出到第9位）</span>
+
+  寄存器结果：<span class="hl">0100 1100</span> = +76（有符号解读）
+
+  真实结果应该是 −180，但寄存器里却是 <span class="hl">+76</span>
+  <span class="hl">负数变成了正数！符号被翻转了。</span>
+
+<span class="cm">逐位追踪进位：</span>
+<span class="cm">bit0: 0+1+1=10  carry=1</span>
+<span class="cm">bit1: 0+1+1=10  carry=1</span>
+<span class="cm">bit2: 1+1+1=11  carry=1</span>
+<span class="cm">bit3: 1+1+1=11  carry=1</span>
+<span class="cm">bit4: 1+0+1=10  carry=1</span>
+<span class="cm">bit5: 0+1+1=10  carry=1</span>
+<span class="cm">bit6: 0+0+1=01  carry=</span><span class="ac">0</span><span class="cm"> ← Carry_In(bit7) = 0</span>
+<span class="cm">bit7: 1+1+0=10  carry=</span><span class="ac">1</span><span class="cm"> ← Carry_Out(bit7) = 1</span>
+
+<span class="cm">OF = Carry_In XOR Carry_Out = 0 XOR 1 = </span><span class="hl">1</span><span class="cm">（溢出！）</span></div>
+
+        <div class="flag-row">
+          <div class="flag-item"><span class="flag-name">SF</span> <span class="flag-val v0">0</span></div>
+          <div class="flag-item"><span class="flag-name">OF</span> <span class="flag-val v1">1</span></div>
+          <div class="flag-item"><span class="flag-name">SF=OF?</span> <span class="flag-val v1">0≠1 ✘</span></div>
+        </div>
+
+        <p><strong>分析：</strong>结果的最高位是 0，所以 SF=0，看起来是正数。但这是假象——真实结果 −180 是负数，只是被截断后符号翻转了。Carry_In=0 但 Carry_Out=1，进出不一致，说明进位在 bit7 处"凭空产生"，篡改了符号位，OF=1。</p>
+
+        <p><strong>推理过程：</strong></p>
+        <div class="code-block"><span class="cm">SF 说：</span>结果是正数（SF=0）  ← <span class="hl">假象</span>
+<span class="cm">OF 说：</span>发生了溢出（OF=1）  ← SF 的符号被翻转了
+
+<span class="cm">真实符号 = SF XOR OF = 0 XOR 1 = 1 → 负数</span>
+<span class="cm">真实结果是负数 → A − B &lt; 0 → A &lt; B → 不应跳转</span>
+
+SF ≠ OF → JGE 不跳 → <span class="ok">正确 ✔</span></div>
+
+        <div class="note note-red">
+          <strong>关键理解：</strong>SF=0 让你以为 A ≥ B，但 OF=1 打了一个"警告标签"——SF 在说谎。SF≠OF，两者不一致，恰好意味着"SF 的判断要反过来"，真实结果其实是负数。
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 情况 ⑤ ── -->
+    <div class="case-card jump">
+      <div class="case-header">
+        <div class="case-num">5</div>
+        <div class="case-title">A &gt; B，有溢出（正溢出）</div>
+        <div class="case-result">SF=1 OF=1 → 跳转 ✔</div>
+      </div>
+      <div class="case-body">
+        <p><strong>例子：A = 100，B = −50</strong>，真实结果 100 − (−50) = 150，超出 +127 的上限，发生正溢出。</p>
+
+        <div class="code-block"><span class="cm">CPU 执行：A + (~B) + 1</span>
+
+  A  =  100 → <span class="ac">0110 0100</span>
+  B  =  −50 → 1100 1110（补码）
+  ~B        → <span class="ac">0011 0001</span>
+
+    0110 0100       <span class="cm">(A)</span>
+  + 0011 0001       <span class="cm">(~B)</span>
+  +         1       <span class="cm">(+1)</span>
+  ───────────
+  <span class="hl">0 1001 0110</span>
+  <span class="cm">↑</span>
+  <span class="cm">Carry_Out = 0（没有溢出到第9位）</span>
+
+  寄存器结果：<span class="hl">1001 0110</span> = −106（有符号解读）
+
+  真实结果应该是 +150，但寄存器里却是 <span class="hl">−106</span>
+  <span class="hl">正数变成了负数！符号被翻转了。</span>
+
+<span class="cm">逐位追踪进位：</span>
+<span class="cm">bit0: 0+1+1=10  carry=1</span>
+<span class="cm">bit1: 0+0+1=01  carry=0</span>
+<span class="cm">bit2: 1+0+0=01  carry=0</span>
+<span class="cm">bit3: 0+0+0=00  carry=0</span>
+<span class="cm">bit4: 0+1+0=01  carry=0</span>
+<span class="cm">bit5: 1+1+0=10  carry=1</span>
+<span class="cm">bit6: 1+0+1=10  carry=</span><span class="ac">1</span><span class="cm"> ← Carry_In(bit7) = 1</span>
+<span class="cm">bit7: 0+0+1=01  carry=</span><span class="ac">0</span><span class="cm"> ← Carry_Out(bit7) = 0</span>
+
+<span class="cm">OF = Carry_In XOR Carry_Out = 1 XOR 0 = </span><span class="hl">1</span><span class="cm">（溢出！）</span></div>
+
+        <div class="flag-row">
+          <div class="flag-item"><span class="flag-name">SF</span> <span class="flag-val v1">1</span></div>
+          <div class="flag-item"><span class="flag-name">OF</span> <span class="flag-val v1">1</span></div>
+          <div class="flag-item"><span class="flag-name">SF=OF?</span> <span class="flag-val v0">1=1 ✔</span></div>
+        </div>
+
+        <p><strong>分析：</strong>结果的最高位是 1，所以 SF=1，看起来是负数。但这又是假象——真实结果 +150 是正数，只是超过了 +127 被截断后符号翻转了。Carry_In=1 但 Carry_Out=0，进出不一致，说明低位进位"被困在"了 bit7 里，篡改了符号位，OF=1。</p>
+
+        <p><strong>推理过程：</strong></p>
+        <div class="code-block"><span class="cm">SF 说：</span>结果是负数（SF=1）  ← <span class="hl">假象</span>
+<span class="cm">OF 说：</span>发生了溢出（OF=1）  ← SF 的符号被翻转了
+
+<span class="cm">真实符号 = SF XOR OF = 1 XOR 1 = 0 → 正数</span>
+<span class="cm">真实结果是正数 → A − B &gt; 0 → A &gt; B → 应该跳转</span>
+
+SF = OF → JGE 跳转 → <span class="ok">正确 ✔</span></div>
+
+        <div class="note note-green">
+          <strong>关键理解：</strong>SF=1 让你以为 A &lt; B，但 OF=1 告诉你"SF 在说谎，要取反"。SF=OF=1，两个 1 异或得 0，说明真实结果是正数。虽然 SF 和 OF 都是 1，看起来"双重异常"，但两个异常恰好抵消——就像"负负得正"。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       统一公式
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">03 &nbsp;/&nbsp; 统一理解</div>
+    <h2>用一个公式统一五种情况</h2>
+
+    <div class="formula-card">
+      <div class="formula">
+        真实符号<br>= SF ⊕ OF
+      </div>
+      <div class="desc">
+        OF=0 时：真实符号 = SF（SF 可信）<br>
+        OF=1 时：真实符号 = NOT(SF)（SF 说谎，取反）
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>OF</th>
+            <th>SF</th>
+            <th>真实符号 = SF⊕OF</th>
+            <th>含义</th>
+            <th>JGE 跳转?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="highlight">
+            <td><code>0</code>（SF 可信）</td>
+            <td><code>0</code></td>
+            <td class="ok">0 → 正/零</td>
+            <td>A ≥ B</td>
+            <td class="ok">跳转（①②）</td>
+          </tr>
+          <tr class="highlight-red">
+            <td><code>0</code>（SF 可信）</td>
+            <td><code>1</code></td>
+            <td class="fail">1 → 负</td>
+            <td>A &lt; B</td>
+            <td class="fail">不跳（③）</td>
+          </tr>
+          <tr class="highlight-red">
+            <td><code>1</code>（SF 说谎）</td>
+            <td><code>0</code></td>
+            <td class="fail">1 → 负（取反）</td>
+            <td>A &lt; B</td>
+            <td class="fail">不跳（④）</td>
+          </tr>
+          <tr class="highlight">
+            <td><code>1</code>（SF 说谎）</td>
+            <td><code>1</code></td>
+            <td class="ok">0 → 正（取反）</td>
+            <td>A &gt; B</td>
+            <td class="ok">跳转（⑤）</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note note-purple">
+      <strong>为什么溢出只发生在情况 ④⑤：</strong>溢出只在"真实结果超出 8 位有符号范围"时才会发生。情况 ①②③ 的真实结果都在 −128~+127 之间，根本不会溢出，所以 OF 一定是 0。只有当 A 和 B 的符号不同且差值很大时（比如大正数减大负数，或大负数减大正数），结果才会超出范围，OF 才会被置为 1。
+    </div>
+
+    <div class="summary-box">
+      <div class="sum-title">总结</div>
+      <p><strong>SF</strong> 是"加了噪声的符号"，<strong>OF</strong> 是噪声本身。</p>
+      <p>OF=0 时，没有噪声，SF 可以直接信任。</p>
+      <p>OF=1 时，噪声存在，SF 的含义被翻转了，需要取反才能还原真实符号。</p>
+      <p><strong>SF XOR OF</strong> 一步完成了去噪：结果为 0 表示真实结果非负（A ≥ B），结果为 1 表示真实结果为负（A &lt; B）。</p>
+      <p>JGE 的条件 <strong>SF=OF</strong> 等价于 <strong>SF XOR OF = 0</strong>，即真实结果 ≥ 0，即 A ≥ B。五种情况全部正确。</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>JGE 五种情况详解 · 补码加法版</span>
+    <span>A + (~B) + 1 &nbsp;/&nbsp; SF ⊕ OF = 真实符号</span>
+  </footer>
+
+</div>
+</body>
+</html>

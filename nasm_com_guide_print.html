@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NASM 生成 COM 可执行文件 — 完整操作指南</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #ffffff;
+    --bg2:       #f5f5f3;
+    --bg3:       #ebebea;
+    --border:    #cccccc;
+    --accent:    #7a5c12;
+    --accent2:   #1a5e7a;
+    --accent3:   #4a318a;
+    --text:      #1a1714;
+    --text-muted:#666666;
+    --green:     #256640;
+    --red:       #992222;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #fff;
+    color: var(--text);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 16px 20px;
+  }
+
+  .page { max-width: 740px; margin: 0 auto; }
+
+  /* ── 页眉 ── */
+  header {
+    border-left: 3px solid var(--accent);
+    padding: 6px 0 6px 12px;
+    margin-bottom: 16px;
+  }
+  header .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+  header h1 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1a1714;
+    line-height: 1.25;
+  }
+  header p {
+    margin-top: 3px;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+  }
+
+  /* ── 章节 ── */
+  section { margin-bottom: 16px; }
+
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+  h2 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1a1714;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1a1714;
+    margin: 10px 0 5px;
+  }
+  p { margin-bottom: 5px; font-size: 0.82rem; }
+
+  /* ── 代码块 ── */
+  .code-block {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 6px 10px;
+    margin-bottom: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text);
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .code-block .cm { color: var(--text-muted); }
+  .code-block .hl { color: var(--red); font-weight: 600; }
+  .code-block .ok { color: var(--green); font-weight: 600; }
+  .code-block .ac { color: var(--accent); font-weight: 600; }
+  .code-block .bl { color: var(--accent2); font-weight: 600; }
+
+  /* ── 表格 ── */
+  .table-wrap {
+    overflow-x: auto;
+    margin-bottom: 8px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+  }
+  thead tr { background: var(--bg3); }
+  thead th {
+    padding: 5px 10px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); }
+  tbody tr:last-child { border-bottom: none; }
+  td {
+    padding: 5px 10px;
+    color: var(--text);
+    vertical-align: middle;
+  }
+  td code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    background: var(--bg3);
+    padding: 1px 4px;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+  }
+  .ok   { color: var(--green); font-weight: 500; }
+  .fail { color: var(--red);   font-weight: 500; }
+  tr.highlight td { background: rgba(122,92,18,0.04); }
+
+  /* ── 提示块 ── */
+  .note {
+    background: var(--bg2);
+    border-left: 2px solid var(--accent2);
+    padding: 5px 10px;
+    margin-bottom: 6px;
+    font-size: 0.78rem;
+    color: var(--text);
+  }
+  .note strong { color: var(--accent2); font-weight: 600; }
+  .note-gold { border-left-color: var(--accent); }
+  .note-gold strong { color: var(--accent); }
+  .note-red { border-left-color: var(--red); }
+  .note-red strong { color: var(--red); }
+  .note-green { border-left-color: var(--green); }
+  .note-green strong { color: var(--green); }
+  .note-purple { border-left-color: var(--accent3); }
+  .note-purple strong { color: var(--accent3); }
+
+  /* ── 步骤卡片 ── */
+  .step-card {
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .step-card .step-header {
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(122,92,18,0.04);
+  }
+  .step-card .step-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent);
+    width: 20px;
+    height: 20px;
+    line-height: 20px;
+    text-align: center;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .step-card .step-title {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #1a1714;
+  }
+  .step-card .step-body {
+    padding: 8px 10px;
+  }
+  .step-card .step-body p { font-size: 0.8rem; margin-bottom: 5px; }
+
+  /* ── 路径流 ── */
+  .path-flow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+  }
+  .path-flow .pf-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 2px 8px;
+    color: var(--text);
+  }
+  .path-flow .pf-arrow {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 10px 0;
+  }
+
+  /* ── 页脚 ── */
+  footer {
+    margin-top: 12px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  /* ── 打印样式 ── */
+  @media print {
+    body { padding: 0; font-size: 11px; }
+    .page { max-width: 100%; }
+    .step-card, .note, .table-wrap { break-inside: avoid; }
+    section { break-inside: avoid; }
+    a { text-decoration: none; color: inherit; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="label">NASM · COM 可执行文件</div>
+    <h1>在 Windows 32 位环境下用 NASM 生成并运行 COM 程序</h1>
+    <p>从环境配置到看到 "Hello,world" 输出的完整操作指南</p>
+  </header>
+
+  <!-- ══════════════════════════════════
+       前置条件
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">01 &nbsp;/&nbsp; 前置条件</div>
+    <h2>运行环境要求</h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>项目</th>
+            <th>要求</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>操作系统</strong></td>
+            <td><strong>32 位 Windows</strong>（XP / Win7 / Win10 均可，可直接运行 COM 文件</td>
+          </tr>
+          <tr>
+            <td><strong>汇编器</strong></td>
+            <td>NASM 2.12（或更高版本）</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       显示文件扩展名
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">02 &nbsp;/&nbsp; 显示文件扩展名</div>
+    <h2>让 Windows 显示文件名后缀</h2>
+
+    <p>Windows 默认隐藏已知文件类型的扩展名，这会导致你看到的 <code>dp61.asm</code> 实际可能是 <code>dp61.asm.txt</code>，NASM 将无法识别。必须先关闭隐藏。</p>
+
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">1</div>
+        <div class="step-title">打开文件资源管理器</div>
+      </div>
+      <div class="step-body">
+        <p>按 <code>Win + E</code> 打开文件资源管理器。</p>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">2</div>
+        <div class="step-title">勾选「文件扩展名」</div>
+      </div>
+      <div class="step-body">
+        <p>点击顶部菜单栏的 <strong>「查看」</strong> 选项卡，在工具栏中找到并勾选：</p>
+        <div class="code-block"><span class="ac">☑ 文件扩展名</span></div>
+        <p>勾选后，所有文件都会显示完整的后缀名，例如 <code>dp61.asm</code>、<code>dp61.com</code>、<code>readme.txt</code>。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       配置 PATH 环境变量
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">03 &nbsp;/&nbsp; 配置 PATH 环境变量</div>
+    <h2>让系统在任意位置识别 nasm 命令</h2>
+
+    <p>安装 NASM 后，如果在 cmd 中输入 <code>nasm</code> 提示 <code>'nasm' is not recognized</code>，说明系统不知道 nasm.exe 在哪里。需要把 NASM 的安装路径加入 PATH 环境变量。</p>
+
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">1</div>
+        <div class="step-title">打开环境变量设置</div>
+      </div>
+      <div class="step-body">
+        <p>按 <code>Win + S</code> 搜索 <strong>「环境变量」</strong>，点击 <strong>「编辑系统环境变量」</strong>。在弹出的"系统属性"窗口中，点击右下角的 <strong>「环境变量」</strong> 按钮。</p>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">2</div>
+        <div class="step-title">编辑 Path 变量</div>
+      </div>
+      <div class="step-body">
+        <p>在「用户变量」区域，找到名为 <strong>Path</strong> 的变量，双击打开编辑界面。</p>
+        <div class="note">
+          <strong>用户变量 vs 系统变量：</strong>修改「用户变量」只对当前用户生效，修改「系统变量」对所有用户生效。一般修改用户变量即可。
+        </div>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">3</div>
+        <div class="step-title">添加 NASM 路径</div>
+      </div>
+      <div class="step-body">
+        <p>点击 <strong>「新建」</strong>，输入 NASM 所在的文件夹路径，例如：</p>
+        <div class="code-block"><span class="ac">C:\Users\m\AppData\Local\bin\NASM</span></div>
+        <p>依次点击「确定」关闭所有窗口，设置生效。</p>
+        <div class="note note-red">
+          <strong>注意：</strong>设置完成后必须<strong>关闭并重新打开 cmd</strong>，新的 PATH 才会生效。在已打开的 cmd 窗口中输入 nasm 仍然会报错。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       操作步骤
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">04 &nbsp;/&nbsp; 操作步骤</div>
+    <h2>从创建文件到运行程序</h2>
+
+    <!-- 步骤 1 -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">1</div>
+        <div class="step-title">新建工作文件夹</div>
+      </div>
+      <div class="step-body">
+        <p>在任意位置创建一个专门存放汇编源码的文件夹，例如：</p>
+        <div class="code-block"><span class="ac">C:\ASM</span></div>
+        <p>后续的源文件和生成的可执行文件都放在这里，便于管理。</p>
+      </div>
+    </div>
+
+<!-- 步骤 2 -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">2</div>
+        <div class="step-title">创建汇编源文件</div>
+      </div>
+      <div class="step-body">
+        <p>用记事本（或任意文本编辑器）编写源代码，后缀必须 <code>.asm</code>，保存到工作文件夹中。</p>
+        <p>以下是演示程序 <code>dp61.asm</code> 的完整源代码：</p>
+        <div class="code-block"><span class="cm">;演示程序dp61.asm</span>
+        segment   .text             <span class="cm">;命名段text</span>
+        org   100H                  <span class="cm">;段内偏移从100H开始计算</span>
+        <span class="cm">;</span>
+        MOV   AX, CS
+        MOV   DS, AX                <span class="cm">;使数据段与代码段相同</span>
+        <span class="cm">;</span>
+        MOV   DX, hello             <span class="cm">;DX=信息hello的段内偏移</span>
+        MOV   AH, 9
+        INT   21H                   <span class="cm">;显示hello开始的字符串（以$结尾）</span>
+        <span class="cm">;</span>
+        MOV   AH, 4CH
+        INT   21H                   <span class="cm">;返回操作系统</span>
+        <span class="cm">;</span>
+    hello     db    "Hello,world", 0DH, 0AH, '$'  <span class="cm">;定义字符串信息</span>
+    <span class="cm">;===============================</span></div>
+      </div>
+    </div>
+
+    <!-- 步骤 3 -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">3</div>
+        <div class="step-title">打开命令提示符（cmd），进入工作文件夹</div>
+      </div>
+      <div class="step-body">
+        <p>按 <code>Win + R</code>，输入 <code>cmd</code>，回车，打开命令提示符窗口。然后切换到工作文件夹：</p>
+        <div class="code-block"><span class="bl">C:\Users\m&gt;</span> <span class="ac">cd C:\ASM</span>
+
+<span class="bl">C:\ASM&gt;</span> <span class="cm">← 现在已经在工作文件夹中</span></div>
+      </div>
+    </div>
+
+    <!-- 步骤 4 -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">4</div>
+        <div class="step-title">使用 NASM 汇编，生成 COM 文件</div>
+      </div>
+      <div class="step-body">
+        <p>输入以下命令：</p>
+        <div class="code-block"><span class="bl">C:\ASM&gt;</span> <span class="ac">nasm dp61.asm -o dp61.com</span></div>
+        <p>如果没有任何输出，说明汇编成功。此时文件夹中会多出一个 <code>dp61.com</code> 文件。</p>
+        <div class="note">
+          <strong>命令格式：</strong><code>nasm 源文件名 -o 目标文件名</code>。目标文件名可以随意取，但后缀必须为 <code>.com</code>，因为这决定了 Windows / DOS 将它当作 COM 格式来加载。
+        </div>
+        <p>如果报错 <code>'nasm' is not recognized</code>，说明 PATH 环境变量未配置（见第 03 节）。临时解决方案是使用完整路径：</p>
+        <div class="code-block"><span class="bl">C:\ASM&gt;</span> <span class="ac">C:\Users\m\AppData\Local\bin\NASM\nasm dp61.asm -o dp61.com</span></div>
+      </div>
+    </div>
+
+    <!-- 步骤 5 -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num">5</div>
+        <div class="step-title">运行 COM 程序</div>
+      </div>
+      <div class="step-body">
+        <p>在同一个命令提示符窗口中，直接输入文件名：</p>
+        <div class="code-block"><span class="bl">C:\ASM&gt;</span> <span class="ac">dp61.com</span></div>
+        <p>屏幕输出：</p>
+        <div class="code-block"><span class="ok">Hello,world</span></div>
+        <p>程序执行完毕后，自动返回命令提示符。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════
+       流程总结
+  ══════════════════════════════════ -->
+  <section>
+    <div class="section-num">05 &nbsp;/&nbsp; 流程总结</div>
+    <h2>完整命令一览</h2>
+
+    <div class="code-block"><span class="cm">① 创建工作文件夹</span>
+<span class="bl">C:\&gt;</span> <span class="ac">mkdir C:\ASM</span>
+
+<span class="cm">② 进入工作文件夹</span>
+<span class="bl">C:\&gt;</span> <span class="ac">cd C:\ASM</span>
+
+<span class="cm">③ 将写好的 dp61.asm 保存到 C:\ASM 下</span>
+
+<span class="cm">④ 汇编（生成 COM 文件）</span>
+<span class="bl">C:\ASM&gt;</span> <span class="ac">nasm dp61.asm -o dp61.com</span>
+
+<span class="cm">⑤ 运行</span>
+<span class="bl">C:\ASM&gt;</span> <span class="ac">dp61.com</span>
+<span class="ok">Hello,world</span></div>
+  </section>
+
+  <footer>
+    <span>NASM COM 程序 · 操作指南</span>
+    <span>nasm dp61.asm -o dp61.com</span>
+  </footer>
+
+</div>
+</body>
+</html>

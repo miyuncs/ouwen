@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>c09_mbr 加载器逻辑框图</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --ink: #1a1a18; --ink3: #8a8a84; --rule: #c8c6be; --bg: #fafaf7;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;
+    background: var(--bg); color: var(--ink); font-size: 11px; line-height: 1.5;
+  }
+  .page {
+    max-width: 900px; margin: 0 auto; padding: 18px 28px 24px;
+    page-break-after: always;
+  }
+  .page:last-child { page-break-after: auto; }
+  .doc-header {
+    border-bottom: 2px solid var(--ink); padding-bottom: 7px; margin-bottom: 10px;
+    display: flex; justify-content: space-between; align-items: flex-end;
+  }
+  .doc-title { font-size: 14px; font-weight: 700; }
+  .doc-sub   { font-size: 9.5px; color: var(--ink3); margin-top: 2px;
+               font-family: 'JetBrains Mono',monospace; }
+  .doc-meta  { font-size: 9.5px; color: var(--ink3); text-align: right;
+               font-family: 'JetBrains Mono',monospace; line-height: 1.7; }
+  .legend {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    margin-bottom: 8px; padding: 5px 10px;
+    background: #fff; border: 1px solid var(--rule); border-radius: 3px; font-size: 9.5px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-box  { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+  .chart-wrap {
+    background: #fff; border: 1px solid var(--rule); border-radius: 3px; padding: 10px 6px;
+  }
+  .doc-footer {
+    border-top: 1px solid var(--rule); margin-top: 8px; padding-top: 5px;
+    display: flex; justify-content: space-between;
+    font-size: 9px; color: var(--ink3); font-family: 'JetBrains Mono',monospace;
+  }
+  @media print {
+    @page { size: A4 portrait; margin: 11mm 14mm; }
+    body  { background:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .page { padding:0; max-width:100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════
+     第1页：MBR 主流程框图
+════════════════════════════════════════════════ -->
+<div class="page">
+  <div class="doc-header">
+    <div>
+      <div class="doc-title">c09_mbr — MBR 加载器主流程框图</div>
+      <div class="doc-sub">c09_mbr.asm · SECTION mbr · vstart=0x7C00 · 实模式</div>
+    </div>
+    <div class="doc-meta">
+      《x86汇编语言：从实模式到保护模式》· 李忠<br>
+      第9章 · MBR加载器 (第1页 / 共2页)
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-box" style="background:#dce8f8;border:1.5px solid #2d5fa6"></div><span>主流程</span></div>
+    <div class="legend-item"><div class="legend-box" style="background:#d4f0e4;border:1.5px solid #1a7a5a"></div><span>重定位流程</span></div>
+    <div class="legend-item"><div class="legend-box" style="background:#ede8f8;border:1.5px solid #6644aa"></div><span>子程序</span></div>
+    <div class="legend-item"><div class="legend-box" style="background:#fef3cc;border:1.5px solid #b08010"></div><span>循环体</span></div>
+    <div class="legend-item"><div class="legend-box" style="background:#fff8f0;border:1.5px solid #aaa"></div><span>判断分支</span></div>
+    <div class="legend-item"><div class="legend-box" style="background:#fde8d8;border:1.5px solid #c25c20"></div><span>段间跳转</span></div>
+  </div>
+
+  <div class="chart-wrap">
+  <svg width="100%" viewBox="0 0 840 720" xmlns="http://www.w3.org/2000/svg"
+       style="font-family:'Noto Sans SC','PingFang SC',sans-serif;">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#555" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-grn" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#1a7a5a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-pur" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#6644aa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-far" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#c25c20" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- ── 左栏：主流程  x中心=200 ── -->
+  <text x="200" y="15" text-anchor="middle" font-size="11" font-weight="700" fill="#1a3d6e">主流程</text>
+
+  <!-- 1. BIOS入口 -->
+  <rect x="60" y="22" width="280" height="40" rx="4" fill="#dce8f8" stroke="#2d5fa6" stroke-width="0.8"/>
+  <text x="200" y="38" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1a3d6e">BIOS 跳转入口</text>
+  <text x="200" y="52" text-anchor="middle" font-size="8.5" fill="#2d5fa6">CS=0x0000, IP=0x7C00 · MBR被加载到物理地址0x7C00</text>
+  <line x1="200" y1="62" x2="200" y2="78" stroke="#555" stroke-width="0.8" marker-end="url(#arr)"/>
+
+  <!-- 2. 初始化堆栈 -->
+  <rect x="60" y="78" width="280" height="40" rx="4" fill="#dce8f8" stroke="#2d5fa6" stroke-width="0.8"/>
+  <text x="200" y="94" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1a3d6e">初始化堆栈</text>
+  <text x="200" y="108" text-anchor="middle" font-size="8.5" fill="#2d5fa6">SS=0x0000, SP=0x0000 · 利用内存高端作临时栈</text>
+  <line x1="200" y1="118" x2="200" y2="134" stroke="#555" stroke-width="0.8" marker-end="url(#arr)"/>
+
+  <!-- 3. 计算加载段地址 -->
+  <rect x="60" y="134" width="280" height="52" rx="4" fill="#dce8f8" stroke="#2d5fa6" stroke-width="0.8"/>
+  <text x="200" y="150" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1a3d6e">计算加载段地址</text>
+  <text x="200" y="163" text-anchor="middle" font-size="8.5" fill="#2d5fa6">dx:ax ← [cs:phy_base] = 0x00010000</text>
+  <text x="200" y="175" text-anchor="middle" font-size="8.5" fill="#2d5fa6">dx:ax ÷ 16 → ax=0x1000 · DS=ES=0x1000</text>
+  <line x1="200" y1="186" x2="200" y2="202" stroke="#555" stroke-width="0.8" marker-end="url(#arr)"/>
+
+  <!-- 4. 读第一个扇区 -->
+  <rect x="60" y="202" width="280" height="52" rx="4" fill="#dce8f8" stroke="#2d5fa6" stroke-width="0.8"/>
+  <text x="200" y="218" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1a3d6e">读取第一个扇区</text>
+  <text x="200" y="231" text-anchor="middle" font-size="8.5" fill="#2d5fa6">DI:SI = 0:100（LBA扇区号）</text>
+  <text x="200" y="243" text-anchor="middle" font-size="8.5" fill="#2d5fa6">DS:BX = 0x1000:0x0000 → 写入物理地址0x10000</text>
+  <!-- call read_hard_disk_0 -->
+  <line x1="340" y1="228" x2="490" y2="228" stroke="#6644aa" stroke-width="0.8" stroke-dasharray="3 2" marker-end="url(#arr-pur)"/>
+  <text x="414" y="221" text-anchor="middle" font-size="8" fill="#6644aa">call read_hard_disk_0</text>
+  <line x1="200" y1="254" x2="200" y2="270" stroke="#555" stroke-width="0.8" marker-end="url(#arr)"/>
+
+  <!-- 5. 判断扇区数 dx==0? -->
+  <polygon points="200,270 295,298 200,326 105,298" fill="#fff8f0" stroke="#aaa" stroke-width="0.8"/>
+  <text x="200" y="294" text-anchor="middle" font-size="10" font-weight="700" fill="#1a1a18">dx == 0?</text>
+  <text x="200" y="310" text-anchor="middle" font-size="8" fill="#888">程序长度是512整数倍？</text>
+
+  <!-- 是→dec ax -->
+  <line x1="200" y1="326" x2="200" y2="342" stroke="#555" stroke-width="0.8" marker-end="url(#arr)"/>
+  <text x="208" y="338" font-size="8.5" fill="#555">是</text>
+  <rect x="110" y="342" width="180" height="26" rx="4" fill="#dce8f8" stroke="#2d5fa6" stroke-width="0.8"/>
+  <text x="200" y="359" text-anchor="middle" font-size="9.5" fill="#1a3d6e">ax = ax − 1（已读1扇区）</text>
+
+  <!-- 否→绕右 -->
+  <line x1="295" y1="298" x2="340" y2="298" stroke="#555" stroke-width="0.8"/>
+  <line x1="340" y1="298" x2="340" y2="384" stroke="#555" stroke-width="0.8"/>
+  <line x1="340" y1="384" x2="282" y2="384" stroke="#555" stroke-width="0.8" marker-end="url(#arr)"/>
+  <text x="318" y="292" font-size="8.5" fill="#555">否</text>
+
+  <!-- 汇合 -->
+  <line x1="200" y1="368" x2="200" y2="384" stroke="#555" stroke-width="0.8"/>
+  <circle cx="200" cy="384" r="3" fill="#555"/>
+  <line x1="200" y1="387" x2="200" y2="402" stroke="#555" stroke-width="0.8" marker-end="url(#arr)"/>
+
+  <!-- ax==0? -->
+  <polygon points="200,402 285,426 200,450 115,426" fill="#fff8f0" stroke="#aaa" stroke-width="0.8"/>
+  <text x="200" y="422" text-anchor="middle" font-size="10" font-weight="700" fill="#1a1a18">ax == 0?</text>
+  <text x="200" y="438" text-anchor="middle" font-size="8" fill="#888">程序长度≤512字节？</text>
+
+  <!-- 是→跳direct -->
+  <line x1="285" y1="426" x2="340" y2="426" stroke="#555" stroke-width="0.8"/>
+  <line x1="340" y1="426" x2="340" y2="510" stroke="#555" stroke-width="0.8"/>
+  <line x1="340" y1="510" x2="282" y2="510" stroke="#555" stroke-width="0.8" marker-end="url(#arr)"/>
+  <text x="318" y="420" font-size="8.5" fill="#555">是</text>
+
+  <!-- 否→循环读 -->
+  <line x1="200" y1="450" x2="200" y2="466" stroke="#555" stroke-width="0.8" marker-end="url(#arr)"/>
+  <text x="208" y="462" font-size="8.5" fill="#555">否</text>
+
+  <!-- 循环读取剩余扇区 -->
+  <rect x="60" y="466" width="280" height="44" rx="4" fill="#fef3cc" stroke="#b08010" stroke-width="0.8"/>
+  <text x="200" y="482" text-anchor="middle" font-size="10.5" font-weight="700" fill="#7a5800">循环读取剩余扇区（CX次）</text>
+  <text x="200" y="495" text-anchor="middle" font-size="8.5" fill="#7a5800">DS+=0x20（下一512字节段）, SI++</text>
+  <text x="200" y="505" text-anchor="middle" font-size="8.5" fill="#7a5800">call read_hard_disk_0 → loop</text>
+  <!-- call连线 -->
+  <line x1="340" y1="488" x2="490" y2="488" stroke="#6644aa" stroke-width="0.8" stroke-dasharray="3 2" marker-end="url(#arr-pur)"/>
+  <text x="414" y="481" text-anchor="middle" font-size="8" fill="#6644aa">call</text>
+
+  <!-- 汇合→direct -->
+  <line x1="200" y1="510" x2="200" y2="498" stroke="none"/>
+  <circle cx="200" cy="510" r="3" fill="#555"/>
+  <line x1="200" y1="513" x2="200" y2="528" stroke="#555" stroke-width="0.8" marker-end="url(#arr)"/>
+
+  <!-- direct: 回填入口点 -->
+  <rect x="60" y="528" width="280" height="44" rx="4" fill="#d4f0e4" stroke="#1a7a5a" stroke-width="0.8"/>
+  <text x="200" y="544" text-anchor="middle" font-size="10.5" font-weight="700" fill="#0e4a2a">direct: 单独回填入口点段地址</text>
+  <text x="200" y="557" text-anchor="middle" font-size="8.5" fill="#1a7a5a">dx:ax ← header[0x08:0x06]</text>
+  <text x="200" y="567" text-anchor="middle" font-size="8.5" fill="#1a7a5a">call calc_segment_base → [0x06] ← ax</text>
+  <!-- call连线 -->
+  <line x1="340" y1="550" x2="490" y2="550" stroke="#6644aa" stroke-width="0.8" stroke-dasharray="3 2" marker-end="url(#arr-pur)"/>
+  <text x="414" y="543" text-anchor="middle" font-size="8" fill="#6644aa">call</text>
+  <line x1="200" y1="572" x2="200" y2="588" stroke="#1a7a5a" stroke-width="0.8" marker-end="url(#arr-grn)"/>
+
+  <!-- 段重定位表处理 -->
+  <rect x="60" y="588" width="280" height="54" rx="4" fill="#d4f0e4" stroke="#1a7a5a" stroke-width="0.8"/>
+  <text x="200" y="604" text-anchor="middle" font-size="10.5" font-weight="700" fill="#0e4a2a">段重定位表处理（realloc循环）</text>
+  <text x="200" y="617" text-anchor="middle" font-size="8.5" fill="#1a7a5a">CX=[0x0a]=5项，BX=0x0c起</text>
+  <text x="200" y="629" text-anchor="middle" font-size="8.5" fill="#1a7a5a">dx:ax←[BX+2:BX] → calc → [BX]←ax → BX+=4</text>
+  <text x="200" y="641" text-anchor="middle" font-size="8.5" fill="#1a7a5a">loop realloc（共5次）</text>
+  <!-- call连线 -->
+  <line x1="340" y1="614" x2="490" y2="614" stroke="#6644aa" stroke-width="0.8" stroke-dasharray="3 2" marker-end="url(#arr-pur)"/>
+  <text x="414" y="607" text-anchor="middle" font-size="8" fill="#6644aa">call ×5</text>
+  <line x1="200" y1="642" x2="200" y2="658" stroke="#1a7a5a" stroke-width="0.8" marker-end="url(#arr-grn)"/>
+
+  <!-- jmp far -->
+  <rect x="60" y="658" width="280" height="30" rx="4" fill="#fde8d8" stroke="#c25c20" stroke-width="0.8"/>
+  <text x="200" y="672" text-anchor="middle" font-size="10.5" font-weight="700" fill="#c25c20">jmp far [0x04]</text>
+  <text x="200" y="683" text-anchor="middle" font-size="8.5" fill="#c25c20">CS←[0x06]（code_1段值），IP←[0x04]（start偏移0x00A2）</text>
+
+  <!-- ── 右栏：子程序  x中心=640 ── -->
+  <text x="640" y="15" text-anchor="middle" font-size="11" font-weight="700" fill="#3d2288">子程序</text>
+
+  <!-- read_hard_disk_0 -->
+  <rect x="490" y="22" width="300" height="130" rx="4" fill="#ede8f8" stroke="#6644aa" stroke-width="0.8"/>
+  <text x="640" y="42" text-anchor="middle" font-size="10.5" font-weight="700" fill="#3d2288">read_hard_disk_0</text>
+  <text x="640" y="56" text-anchor="middle" font-size="8.5" fill="#5544aa">输入：DI:SI=32位LBA扇区号</text>
+  <text x="640" y="67" text-anchor="middle" font-size="8.5" fill="#5544aa">      DS:BX=目标内存地址</text>
+  <line x1="504" y1="74" x2="776" y2="74" stroke="#c8c6be" stroke-width="0.5"/>
+  <text x="640" y="86" text-anchor="middle" font-size="8.5" fill="#5544aa">① 0x1F2←1（读1扇区）</text>
+  <text x="640" y="97" text-anchor="middle" font-size="8.5" fill="#5544aa">② 0x1F3←SI低8，0x1F4←SI高8（LBA bit15~0）</text>
+  <text x="640" y="108" text-anchor="middle" font-size="8.5" fill="#5544aa">③ 0x1F5←DI低8（LBA bit23~16）</text>
+  <text x="640" y="119" text-anchor="middle" font-size="8.5" fill="#5544aa">④ 0x1F6←0xE0|DI高4位（LBA28主盘模式）</text>
+  <text x="640" y="130" text-anchor="middle" font-size="8.5" fill="#5544aa">⑤ 0x1F7←0x20（读命令）</text>
+  <text x="640" y="141" text-anchor="middle" font-size="8.5" fill="#5544aa">⑥ 等待状态(0x1F7 &amp; 0x88)==0x08</text>
+  <text x="640" y="152" text-anchor="middle" font-size="8.5" fill="#5544aa">⑦ 循环256次从0x1F0读字→[DS:BX]，ret</text>
+
+  <!-- calc_segment_base -->
+  <rect x="490" y="172" width="300" height="144" rx="4" fill="#ede8f8" stroke="#6644aa" stroke-width="0.8"/>
+  <text x="640" y="192" text-anchor="middle" font-size="10.5" font-weight="700" fill="#3d2288">calc_segment_base</text>
+  <text x="640" y="206" text-anchor="middle" font-size="8.5" fill="#5544aa">输入：DX:AX = 32位文件内偏移</text>
+  <text x="640" y="217" text-anchor="middle" font-size="8.5" fill="#5544aa">返回：AX    = 16位段值</text>
+  <line x1="504" y1="224" x2="776" y2="224" stroke="#c8c6be" stroke-width="0.5"/>
+  <text x="504" y="237" font-size="8.5" fill="#5544aa">① dx:ax += phy_base(0x10000)</text>
+  <text x="504" y="249" font-size="8.5" fill="#888">   add ax,[cs:phy_base]</text>
+  <text x="504" y="260" font-size="8.5" fill="#888">   adc dx,[cs:phy_base+2]</text>
+  <text x="504" y="272" font-size="8.5" fill="#5544aa">② 右移4位得段值</text>
+  <text x="504" y="283" font-size="8.5" fill="#888">   shr ax,4</text>
+  <text x="504" y="294" font-size="8.5" fill="#888">   ror dx,4 / and dx,0xF000</text>
+  <text x="504" y="305" font-size="8.5" fill="#888">   or ax,dx → AX=段值，ret</text>
+
+  <!-- header内存布局 -->
+  <rect x="490" y="336" width="300" height="130" rx="4" fill="#fff" stroke="#c8c6be" stroke-width="0.8"/>
+  <text x="640" y="354" text-anchor="middle" font-size="10" font-weight="700" fill="#1a1a18">header 内存布局（DS:0x00起）</text>
+  <line x1="500" y1="359" x2="780" y2="359" stroke="#c8c6be" stroke-width="0.5"/>
+  <text x="500" y="371" font-size="8.5" fill="#2d5fa6" font-weight="700">[0x00~0x03]</text><text x="590" y="371" font-size="8.5" fill="#555">program_length（程序总字节数）</text>
+  <text x="500" y="383" font-size="8.5" fill="#2d5fa6" font-weight="700">[0x04~0x05]</text><text x="590" y="383" font-size="8.5" fill="#555">start偏移（IP）= 0x00A2</text>
+  <text x="500" y="395" font-size="8.5" fill="#1a7a5a" font-weight="700">[0x06~0x09]</text><text x="590" y="395" font-size="8.5" fill="#1a7a5a">code_1段地址 ← 单独回填</text>
+  <text x="500" y="407" font-size="8.5" fill="#2d5fa6" font-weight="700">[0x0a~0x0b]</text><text x="590" y="407" font-size="8.5" fill="#555">重定位表项数 = 5</text>
+  <text x="500" y="419" font-size="8.5" fill="#1a7a5a" font-weight="700">[0x0c~0x0f]</text><text x="590" y="419" font-size="8.5" fill="#1a7a5a">code_1_segment ← 重定位表[0]</text>
+  <text x="500" y="431" font-size="8.5" fill="#1a7a5a" font-weight="700">[0x10~0x13]</text><text x="590" y="431" font-size="8.5" fill="#1a7a5a">code_2_segment ← 重定位表[1]</text>
+  <text x="500" y="443" font-size="8.5" fill="#1a7a5a" font-weight="700">[0x14~0x17]</text><text x="590" y="443" font-size="8.5" fill="#1a7a5a">data_1_segment ← 重定位表[2]</text>
+  <text x="500" y="455" font-size="8.5" fill="#1a7a5a" font-weight="700">[0x18~0x1b]</text><text x="590" y="455" font-size="8.5" fill="#1a7a5a">data_2_segment ← 重定位表[3]</text>
+  <text x="500" y="467" font-size="8.5" fill="#1a7a5a" font-weight="700">[0x1c~0x1f]</text><text x="590" y="467" font-size="8.5" fill="#1a7a5a">stack_segment  ← 重定位表[4]</text>
+
+  </svg>
+  </div>
+  <div class="doc-footer">
+    <span>c09_mbr.asm · 主流程框图 · 第1页</span>
+    <span>《x86汇编语言：从实模式到保护模式》· 李忠著</span>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════
+     第2页：重定位详细框图
+════════════════════════════════════════════════ -->
+<div class="page">
+  <div class="doc-header">
+    <div>
+      <div class="doc-title">c09_mbr — 段重定位详细框图</div>
+      <div class="doc-sub">direct: 单独回填入口点 · realloc: 循环处理重定位表 · calc_segment_base 算法</div>
+    </div>
+    <div class="doc-meta">
+      《x86汇编语言：从实模式到保护模式》· 李忠<br>
+      第9章 · MBR加载器 (第2页 / 共2页)
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-box" style="background:#d4f0e4;border:1.5px solid #1a7a5a"></div><span>重定位主流程</span></div>
+    <div class="legend-item"><div class="legend-box" style="background:#ede8f8;border:1.5px solid #6644aa"></div><span>calc_segment_base 内部</span></div>
+    <div class="legend-item"><div class="legend-box" style="background:#fef3cc;border:1.5px solid #b08010"></div><span>循环体</span></div>
+    <div class="legend-item"><div class="legend-box" style="background:#fff8f0;border:1.5px solid #aaa"></div><span>判断分支</span></div>
+    <div class="legend-item"><div class="legend-box" style="background:#fff;border:1.5px solid #c8c6be"></div><span>数值说明</span></div>
+  </div>
+
+  <div class="chart-wrap">
+  <svg width="100%" viewBox="0 0 840 680" xmlns="http://www.w3.org/2000/svg"
+       style="font-family:'Noto Sans SC','PingFang SC',sans-serif;">
+  <defs>
+    <marker id="r-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#555" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="r-grn" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#1a7a5a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="r-pur" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#6644aa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- ══════════════════════════════
+       左栏：重定位主流程  x中心=200
+  ══════════════════════════════ -->
+  <text x="200" y="15" text-anchor="middle" font-size="11" font-weight="700" fill="#0e4a2a">重定位主流程</text>
+  <text x="200" y="26" text-anchor="middle" font-size="8.5" fill="#888">（pop ds 恢复DS后，直接进入 direct:）</text>
+
+  <!-- direct: 读入口点地址 -->
+  <rect x="50" y="34" width="300" height="54" rx="4" fill="#d4f0e4" stroke="#1a7a5a" stroke-width="0.8"/>
+  <text x="200" y="52" text-anchor="middle" font-size="10.5" font-weight="700" fill="#0e4a2a">direct: 单独处理入口点段地址</text>
+  <text x="200" y="65" text-anchor="middle" font-size="8.5" fill="#1a7a5a">ax ← header[0x06]（code_1文件偏移低16位）</text>
+  <text x="200" y="77" text-anchor="middle" font-size="8.5" fill="#1a7a5a">dx ← header[0x08]（code_1文件偏移高16位）</text>
+  <line x1="200" y1="88" x2="200" y2="104" stroke="#1a7a5a" stroke-width="0.8" marker-end="url(#r-grn)"/>
+
+  <!-- call calc_segment_base (1) -->
+  <rect x="50" y="104" width="300" height="34" rx="4" fill="#d4f0e4" stroke="#1a7a5a" stroke-width="0.8"/>
+  <text x="200" y="120" text-anchor="middle" font-size="10.5" font-weight="700" fill="#0e4a2a">call calc_segment_base</text>
+  <text x="200" y="133" text-anchor="middle" font-size="8.5" fill="#1a7a5a">输入 dx:ax=文件偏移，返回 ax=16位段值</text>
+  <!-- 连线到calc框 -->
+  <line x1="350" y1="121" x2="458" y2="121" stroke="#6644aa" stroke-width="0.8" stroke-dasharray="3 2" marker-end="url(#r-pur)"/>
+  <text x="402" y="114" text-anchor="middle" font-size="8" fill="#6644aa">call</text>
+  <line x1="200" y1="138" x2="200" y2="154" stroke="#1a7a5a" stroke-width="0.8" marker-end="url(#r-grn)"/>
+
+  <!-- 回填[0x06] -->
+  <rect x="50" y="154" width="300" height="34" rx="4" fill="#d4f0e4" stroke="#1a7a5a" stroke-width="0.8"/>
+  <text x="200" y="170" text-anchor="middle" font-size="10.5" font-weight="700" fill="#0e4a2a">回填入口点段值</text>
+  <text x="200" y="183" text-anchor="middle" font-size="8.5" fill="#1a7a5a">header[0x06] ← ax（高2字节[0x08~0x09]废弃）</text>
+  <line x1="200" y1="188" x2="200" y2="206" stroke="#1a7a5a" stroke-width="0.8" marker-end="url(#r-grn)"/>
+
+  <!-- 分隔线 -->
+  <line x1="50" y1="204" x2="350" y2="204" stroke="#c8c6be" stroke-width="0.8" stroke-dasharray="4 2"/>
+  <text x="200" y="218" text-anchor="middle" font-size="9" fill="#888">↓ 进入重定位表循环</text>
+
+  <!-- 初始化循环 -->
+  <rect x="50" y="224" width="300" height="42" rx="4" fill="#d4f0e4" stroke="#1a7a5a" stroke-width="0.8"/>
+  <text x="200" y="240" text-anchor="middle" font-size="10.5" font-weight="700" fill="#0e4a2a">初始化重定位循环</text>
+  <text x="200" y="253" text-anchor="middle" font-size="8.5" fill="#1a7a5a">CX ← header[0x0a] = 5（重定位项数）</text>
+  <text x="200" y="264" text-anchor="middle" font-size="8.5" fill="#1a7a5a">BX ← 0x0c（重定位表首项偏移）</text>
+  <line x1="200" y1="266" x2="200" y2="282" stroke="#1a7a5a" stroke-width="0.8" marker-end="url(#r-grn)"/>
+
+  <!-- realloc循环体 -->
+  <rect x="50" y="282" width="300" height="96" rx="4" fill="#fef3cc" stroke="#b08010" stroke-width="0.8"/>
+  <text x="200" y="300" text-anchor="middle" font-size="10.5" font-weight="700" fill="#7a5800">realloc 循环体</text>
+  <text x="60" y="315" font-size="8.5" fill="#7a5800">① ax ← [DS:BX]      低16位文件偏移</text>
+  <text x="60" y="327" font-size="8.5" fill="#7a5800">② dx ← [DS:BX+2]    高16位文件偏移</text>
+  <text x="60" y="339" font-size="8.5" fill="#7a5800">③ call calc_segment_base → ax=段值</text>
+  <text x="60" y="351" font-size="8.5" fill="#7a5800">④ [DS:BX] ← ax      回填低2字节</text>
+  <text x="60" y="363" font-size="8.5" fill="#7a5800">⑤ BX += 4           指向下一项</text>
+  <text x="60" y="375" font-size="8.5" fill="#7a5800">⑥ loop realloc      CX-- 不为0继续</text>
+  <!-- call连线 -->
+  <line x1="350" y1="339" x2="458" y2="339" stroke="#6644aa" stroke-width="0.8" stroke-dasharray="3 2" marker-end="url(#r-pur)"/>
+  <text x="402" y="332" text-anchor="middle" font-size="8" fill="#6644aa">call ×5</text>
+
+  <!-- loop判断 -->
+  <line x1="200" y1="378" x2="200" y2="396" stroke="#555" stroke-width="0.8" marker-end="url(#r-arr)"/>
+  <polygon points="200,396 278,418 200,440 122,418" fill="#fff8f0" stroke="#aaa" stroke-width="0.8"/>
+  <text x="200" y="414" text-anchor="middle" font-size="10" font-weight="700" fill="#1a1a18">CX-- ≠ 0?</text>
+  <text x="200" y="430" text-anchor="middle" font-size="8" fill="#888">还有重定位项？</text>
+
+  <!-- 是→回到循环体 -->
+  <line x1="122" y1="418" x2="34" y2="418" stroke="#555" stroke-width="0.8"/>
+  <line x1="34" y1="418" x2="34" y2="330" stroke="#555" stroke-width="0.8"/>
+  <line x1="34" y1="330" x2="48" y2="330" stroke="#555" stroke-width="0.8" marker-end="url(#r-arr)"/>
+  <text x="14" y="378" font-size="8.5" fill="#555" transform="rotate(-90,14,378)">是（继续）</text>
+
+  <!-- 否→5项处理完 -->
+  <line x1="200" y1="440" x2="200" y2="456" stroke="#555" stroke-width="0.8" marker-end="url(#r-arr)"/>
+  <text x="208" y="452" font-size="8.5" fill="#555">否（5项全部完成）</text>
+
+  <!-- 完成 -->
+  <rect x="50" y="456" width="300" height="30" rx="4" fill="#0e4a2a" stroke="#0e4a2a" stroke-width="0.8"/>
+  <text x="200" y="471" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">重定位完成 → jmp far [0x04]</text>
+  <text x="200" y="482" text-anchor="middle" font-size="8.5" fill="#99d4b8">CS:IP = code_1段值:0x00A2(start)</text>
+
+  <!-- 重定位5项示意 -->
+  <rect x="50" y="510" width="300" height="158" rx="4" fill="#fff" stroke="#c8c6be" stroke-width="0.8"/>
+  <text x="200" y="527" text-anchor="middle" font-size="9.5" font-weight="700" fill="#1a1a18">重定位表5项处理示意（BX递增）</text>
+  <line x1="60" y1="532" x2="340" y2="532" stroke="#c8c6be" stroke-width="0.5"/>
+
+  <!-- 表格头 -->
+  <text x="70"  y="544" font-size="8.5" font-weight="700" fill="#555">BX</text>
+  <text x="112" y="544" font-size="8.5" font-weight="700" fill="#555">字段</text>
+  <text x="220" y="544" font-size="8.5" font-weight="700" fill="#555">编译时（文件偏移）</text>
+  <text x="310" y="544" font-size="8.5" font-weight="700" fill="#555">回填后</text>
+  <line x1="60" y1="548" x2="340" y2="548" stroke="#c8c6be" stroke-width="0.5"/>
+
+  <text x="70"  y="560" font-size="8" fill="#1a7a5a">0x0c</text>
+  <text x="112" y="560" font-size="8" fill="#1a7a5a">code_1_segment</text>
+  <text x="220" y="560" font-size="8" fill="#888">0x00000020</text>
+  <text x="310" y="560" font-size="8" fill="#1a7a5a">0x1002</text>
+
+  <text x="70"  y="573" font-size="8" fill="#1a7a5a">0x10</text>
+  <text x="112" y="573" font-size="8" fill="#1a7a5a">code_2_segment</text>
+  <text x="220" y="573" font-size="8" fill="#888">0x000000e0</text>
+  <text x="310" y="573" font-size="8" fill="#1a7a5a">0x100e</text>
+
+  <text x="70"  y="586" font-size="8" fill="#1a7a5a">0x14</text>
+  <text x="112" y="586" font-size="8" fill="#1a7a5a">data_1_segment</text>
+  <text x="220" y="586" font-size="8" fill="#888">0x000000f0</text>
+  <text x="310" y="586" font-size="8" fill="#1a7a5a">0x100f</text>
+
+  <text x="70"  y="599" font-size="8" fill="#1a7a5a">0x18</text>
+  <text x="112" y="599" font-size="8" fill="#1a7a5a">data_2_segment</text>
+  <text x="220" y="599" font-size="8" fill="#888">0x00000290</text>
+  <text x="310" y="599" font-size="8" fill="#1a7a5a">0x1029</text>
+
+  <text x="70"  y="612" font-size="8" fill="#1a7a5a">0x1c</text>
+  <text x="112" y="612" font-size="8" fill="#1a7a5a">stack_segment</text>
+  <text x="220" y="612" font-size="8" fill="#888">0x000002a0</text>
+  <text x="310" y="612" font-size="8" fill="#1a7a5a">0x102a</text>
+
+  <line x1="60" y1="618" x2="340" y2="618" stroke="#c8c6be" stroke-width="0.5"/>
+  <text x="200" y="630" text-anchor="middle" font-size="8" fill="#888">（偏移值为示意，实际取决于各段大小）</text>
+  <text x="200" y="643" text-anchor="middle" font-size="8" fill="#888">回填后高2字节[BX+2~BX+3]不再使用</text>
+  <text x="200" y="656" text-anchor="middle" font-size="8.5" fill="#1a7a5a">段值 = (phy_base + 文件偏移) ÷ 16</text>
+  <text x="200" y="667" text-anchor="middle" font-size="8.5" fill="#1a7a5a">= (0x10000 + offset) >> 4</text>
+
+  <!-- ══════════════════════════════
+       右栏：calc_segment_base 详细步骤  x中心=640
+  ══════════════════════════════ -->
+  <text x="640" y="15" text-anchor="middle" font-size="11" font-weight="700" fill="#3d2288">calc_segment_base 内部流程</text>
+  <text x="640" y="26" text-anchor="middle" font-size="8.5" fill="#888">输入：DX:AX = 32位文件内偏移　返回：AX = 16位段值</text>
+
+  <!-- 保存dx -->
+  <rect x="458" y="34" width="364" height="28" rx="4" fill="#ede8f8" stroke="#6644aa" stroke-width="0.8"/>
+  <text x="640" y="52" text-anchor="middle" font-size="9.5" fill="#3d2288">push dx（保存DX，计算结束后恢复）</text>
+  <line x1="640" y1="62" x2="640" y2="78" stroke="#555" stroke-width="0.8" marker-end="url(#r-arr)"/>
+
+  <!-- 步骤1：加phy_base -->
+  <rect x="458" y="78" width="364" height="54" rx="4" fill="#ede8f8" stroke="#6644aa" stroke-width="0.8"/>
+  <text x="640" y="96" text-anchor="middle" font-size="10.5" font-weight="700" fill="#3d2288">步骤①：加上 phy_base（0x10000）</text>
+  <text x="640" y="109" text-anchor="middle" font-size="8.5" fill="#5544aa">add ax, [cs:phy_base]      ax += 0x0000</text>
+  <text x="640" y="121" text-anchor="middle" font-size="8.5" fill="#5544aa">adc dx, [cs:phy_base+2]    dx += 0x0001（含进位）</text>
+  <text x="640" y="130" text-anchor="middle" font-size="8.5" fill="#888">→ dx:ax = 文件偏移 + 0x10000 = 物理地址</text>
+
+  <!-- 示例数值框1 -->
+  <rect x="458" y="140" width="364" height="34" rx="4" fill="#fff" stroke="#c8c6be" stroke-width="0.7"/>
+  <text x="640" y="154" text-anchor="middle" font-size="8.5" fill="#555">例：code_1偏移=0x0020</text>
+  <text x="640" y="167" text-anchor="middle" font-size="8.5" fill="#1a7a5a">dx:ax = 0x0001:0x0020 → 物理地址 0x00010020</text>
+  <line x1="640" y1="174" x2="640" y2="190" stroke="#555" stroke-width="0.8" marker-end="url(#r-arr)"/>
+
+  <!-- 步骤2：右移4位 -->
+  <rect x="458" y="190" width="364" height="84" rx="4" fill="#ede8f8" stroke="#6644aa" stroke-width="0.8"/>
+  <text x="640" y="208" text-anchor="middle" font-size="10.5" font-weight="700" fill="#3d2288">步骤②：右移4位得16位段值</text>
+  <text x="468" y="222" font-size="8.5" fill="#5544aa">shr ax,4</text>
+  <text x="580" y="222" font-size="8.5" fill="#888">ax高4位补0，低4位丢弃</text>
+  <text x="468" y="234" font-size="8.5" fill="#5544aa">ror dx,4</text>
+  <text x="580" y="234" font-size="8.5" fill="#888">dx循环右移4位，低4位→高4位</text>
+  <text x="468" y="246" font-size="8.5" fill="#5544aa">and dx,0xF000</text>
+  <text x="580" y="246" font-size="8.5" fill="#888">只保留dx的最高4位</text>
+  <text x="468" y="258" font-size="8.5" fill="#5544aa">or  ax,dx</text>
+  <text x="580" y="258" font-size="8.5" fill="#888">合并dx高4位到ax，组成段值</text>
+  <text x="640" y="270" text-anchor="middle" font-size="8.5" fill="#3d2288" font-weight="700">→ AX = 完整16位段值</text>
+
+  <!-- 示例数值框2 -->
+  <rect x="458" y="282" width="364" height="56" rx="4" fill="#fff" stroke="#c8c6be" stroke-width="0.7"/>
+  <text x="640" y="297" text-anchor="middle" font-size="8.5" fill="#555">例：物理地址 0x00010020</text>
+  <text x="468" y="310" font-size="8.5" fill="#888">shr ax(0x0020),4 → ax=0x0002</text>
+  <text x="468" y="322" font-size="8.5" fill="#888">ror dx(0x0001),4 → dx=0x1000</text>
+  <text x="468" y="334" font-size="8.5" fill="#888">and dx,0xF000   → dx=0x1000  or ax,dx → ax=0x1002</text>
+  <line x1="640" y1="338" x2="640" y2="354" stroke="#555" stroke-width="0.8" marker-end="url(#r-arr)"/>
+
+  <!-- pop dx，ret -->
+  <rect x="458" y="354" width="364" height="28" rx="4" fill="#ede8f8" stroke="#6644aa" stroke-width="0.8"/>
+  <text x="640" y="372" text-anchor="middle" font-size="9.5" fill="#3d2288">pop dx（恢复DX）· ret → AX=0x1002（段值）</text>
+  <line x1="640" y1="382" x2="640" y2="398" stroke="#555" stroke-width="0.8" marker-end="url(#r-arr)"/>
+
+  <!-- 位运算示意图 -->
+  <rect x="458" y="398" width="364" height="264" rx="4" fill="#fff" stroke="#c8c6be" stroke-width="0.8"/>
+  <text x="640" y="416" text-anchor="middle" font-size="9.5" font-weight="700" fill="#1a1a18">右移4位位运算示意</text>
+  <line x1="468" y1="421" x2="812" y2="421" stroke="#c8c6be" stroke-width="0.5"/>
+
+  <text x="468" y="434" font-size="8" fill="#555">物理地址 dx:ax = 0x0001 : 0x0020</text>
+  <text x="468" y="446" font-size="8" fill="#888">二进制：0000 0000 0000 0001 : 0000 0000 0010 0000</text>
+
+  <text x="468" y="462" font-size="8" font-weight="700" fill="#3d2288">shr ax,4：</text>
+  <text x="468" y="474" font-size="8" fill="#888">  ax=0x0020 → 0000 0000 0010 0000</text>
+  <text x="468" y="486" font-size="8" fill="#1a7a5a">  ax=0x0002 → 0000 0000 0000 0010（低4位0000丢弃）</text>
+
+  <text x="468" y="502" font-size="8" font-weight="700" fill="#3d2288">ror dx,4：</text>
+  <text x="468" y="514" font-size="8" fill="#888">  dx=0x0001 → 0000 0000 0000 0001</text>
+  <text x="468" y="526" font-size="8" fill="#1a7a5a">  dx=0x1000 → 0001 0000 0000 0000（低4位0001→最高4位）</text>
+
+  <text x="468" y="542" font-size="8" font-weight="700" fill="#3d2288">and dx,0xF000：</text>
+  <text x="468" y="554" font-size="8" fill="#1a7a5a">  dx=0x1000（最高4位保留，其余清零）</text>
+
+  <text x="468" y="570" font-size="8" font-weight="700" fill="#3d2288">or ax,dx：</text>
+  <text x="468" y="582" font-size="8" fill="#888">  ax=0x0002 → 0000 0000 0000 0010</text>
+  <text x="468" y="594" font-size="8" fill="#888">  dx=0x1000 → 0001 0000 0000 0000</text>
+  <line x1="468" y1="599" x2="812" y2="599" stroke="#c8c6be" stroke-width="0.5"/>
+  <text x="468" y="612" font-size="8" fill="#1a7a5a" font-weight="700">  ax=0x1002 → 0001 0000 0000 0010  ← 最终16位段值</text>
+  <text x="468" y="628" font-size="8" fill="#888">  物理地址验证：0x1002 × 16 = 0x10020 ✓</text>
+  <text x="468" y="644" font-size="8" fill="#888">  原理：(dx:ax) >> 4 等效于 物理地址 ÷ 16 = 段值</text>
+  <text x="468" y="656" font-size="8" fill="#888">  cs: 前缀：phy_base在代码段内，DS未知，必须用CS寻址</text>
+
+  </svg>
+  </div>
+  <div class="doc-footer">
+    <span>c09_mbr.asm · 重定位详细框图 · 第2页</span>
+    <span>《x86汇编语言：从实模式到保护模式》· 李忠著</span>
+  </div>
+</div>
+
+</body>
+</html>
